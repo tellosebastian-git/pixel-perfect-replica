@@ -47,13 +47,16 @@ plan, importe, versión, moneda, referencia y estado del proveedor coinciden.
 
 La edición de precio usa preview, confirmación del impacto, motivo y
 reautenticación con contraseña. La RPC `SECURITY INVOKER` actualiza catálogo y
-materializa el lote en una única transacción con control optimista de importe,
-versión y `updated_at`. El worker toma hasta 20 ítems, procesa con concurrencia
-máxima 5 y reintenta errores transitorios hasta tres veces. Antes de cada cambio
-verifica nuevamente la suscripción local y el `preapproval` de Mercado Pago;
-éxitos, fallos, exclusiones e interrupciones quedan trazables y reintentables. Un
-éxito parcial no revierte el catálogo porque algunos débitos externos ya pueden
-haber cambiado.
+materializa el lote e invalida checkouts pendientes en una única transacción con
+control optimista de importe, versión y `updated_at`. El worker toma hasta 20
+ítems, procesa con concurrencia máxima 5 y reintenta errores transitorios hasta
+tres veces. Antes de cada cambio verifica la suscripción y el `preapproval`, y
+persiste el tipo de mutación y la revisión local exacta antes del `PUT`. Una
+caída o respuesta ambigua conserva ese fence y se retoma de forma idempotente;
+si la revisión local cambió, entra en compensación con CAS para reaplicar el
+precio del lote cuando el objetivo siga vigente o restaurar/cancelar según la
+nueva intención. Éxitos, fallos, exclusiones e interrupciones quedan trazables y
+reintentables. Un éxito parcial no revierte el catálogo.
 
 El webhook de suscripciones ahora falla cerrado si falta
 `MERCADOPAGO_WEBHOOK_SECRET` (salvo opt-in doble y explícito para sandbox), valida firma
@@ -61,6 +64,12 @@ y antigüedad del timestamp, trata los eventos de manera idempotente y serializa
 actualizaciones locales con comparación de `updated_at`. No promueve acceso ante
 importe, moneda, plan o referencia incompatibles; preserva la intención de un
 checkout rechazado para su recuperación y no procesa dos veces un pago anterior.
+Los cobros de checkouts invalidados u otros vínculos obsoletos se persisten,
+auditan y cancelan sin otorgar acceso. Un débito con el precio inmediatamente
+anterior que quedó en vuelo durante un lote sí extiende el período pagado, pero
+conserva el nuevo snapshot para el siguiente débito y abre una incidencia. La
+promoción de un checkout se confirma antes de cancelar el vínculo anterior, cuyo
+identificador queda guardado para completar esa limpieza en un retry.
 
 **No está desplegado ni habilitado en producción.** Quedan pendientes, fuera de
 esta sesión local: revisión y aplicación de

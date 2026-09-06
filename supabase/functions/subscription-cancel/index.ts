@@ -45,6 +45,7 @@ async function verifyOwnedPreapproval(
   organizationId: string,
 ): Promise<{ status: string } | null> {
   const response = await mpPlatformFetch(`/preapproval/${encodeURIComponent(preapprovalId)}`);
+  if (response.status === 404) return { status: 'missing' };
   if (!response.ok) return null;
   const provider = await response.json() as Record<string, unknown>;
   const parsed = parseReference(provider.external_reference);
@@ -63,6 +64,7 @@ async function cancelOwnedPending(
 ): Promise<boolean> {
   const provider = await verifyOwnedPreapproval(preapprovalId, externalReference, organizationId);
   if (!provider) return false;
+  if (provider.status === 'missing') return true;
   if (provider.status === 'cancelled' || provider.status === 'canceled') return true;
   if (provider.status !== 'pending') return false;
   const response = await mpPlatformFetch(`/preapproval/${encodeURIComponent(preapprovalId)}`, {
@@ -87,7 +89,7 @@ serve(async (req: Request): Promise<Response> => {
   try {
     const { data: subscription, error: subscriptionError } = await supabaseAdmin
       .from('organization_subscriptions')
-      .select('id,status,provider,current_plan_code,effective_plan_code,current_period_start,current_period_end,mercadopago_preapproval_id,mercadopago_external_reference,metadata,updated_at')
+      .select('id,status,provider,current_plan_code,effective_plan_code,billing_plan_code,billing_amount_ars,current_period_start,current_period_end,mercadopago_preapproval_id,mercadopago_external_reference,metadata,updated_at')
       .eq('organization_id', context.organizationId)
       .maybeSingle();
 
@@ -95,7 +97,17 @@ serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: 'Suscripcion no encontrada' }, 404);
     }
 
-    if (subscription.status === 'cancelled') {
+    const metadata = isRecord(subscription.metadata) ? subscription.metadata : {};
+    const pendingPreapprovalId = typeof metadata.pending_mercadopago_preapproval_id === 'string'
+      ? metadata.pending_mercadopago_preapproval_id
+      : null;
+    const pendingExternalReference = typeof metadata.pending_mercadopago_external_reference === 'string'
+      ? metadata.pending_mercadopago_external_reference
+      : null;
+    const hasSeparatePendingCheckout = Boolean(
+      pendingPreapprovalId && pendingPreapprovalId !== subscription.mercadopago_preapproval_id,
+    );
+    if (subscription.status === 'cancelled' && !hasSeparatePendingCheckout) {
       return jsonResponse({ ok: true, already_cancelled: true });
     }
 
@@ -107,23 +119,61 @@ serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: 'La suscripcion no tiene una referencia de Mercado Pago' }, 409);
     }
 
-    const metadata = isRecord(subscription.metadata) ? subscription.metadata : {};
-    const pendingPreapprovalId = typeof metadata.pending_mercadopago_preapproval_id === 'string'
-      ? metadata.pending_mercadopago_preapproval_id
-      : null;
-    const pendingExternalReference = typeof metadata.pending_mercadopago_external_reference === 'string'
-      ? metadata.pending_mercadopago_external_reference
-      : null;
-    if (
-      pendingPreapprovalId &&
-      pendingPreapprovalId !== subscription.mercadopago_preapproval_id &&
-      (!pendingExternalReference || !(await cancelOwnedPending(
+    const cleanedMetadata = withoutPendingIntent(metadata);
+    let expectedSubscriptionUpdatedAt = subscription.updated_at;
+
+    if (hasSeparatePendingCheckout && pendingPreapprovalId) {
+      if (!pendingExternalReference || !(await cancelOwnedPending(
         pendingPreapprovalId,
         pendingExternalReference,
         context.organizationId,
-      )))
-    ) {
-      return jsonResponse({ error: 'No se pudo invalidar el checkout pendiente' }, 409);
+      ))) {
+        return jsonResponse({ error: 'No se pudo invalidar el checkout pendiente' }, 409);
+      }
+
+      const currentPlanCode = subscription.effective_plan_code ??
+        subscription.current_plan_code ??
+        subscription.billing_plan_code ??
+        null;
+      if (!currentPlanCode) {
+        return jsonResponse({ error: 'No se pudo determinar el plan vigente' }, 409);
+      }
+      const { data: clearedPending, error: clearPendingError } = await supabaseAdmin.rpc(
+        'subscription_finalize_pending_plan_cancellation',
+        {
+          _organization_id: context.organizationId,
+          _subscription_id: subscription.id,
+          _expected_subscription_updated_at: subscription.updated_at,
+          _expected_current_preapproval_id: subscription.mercadopago_preapproval_id,
+          _expected_pending_preapproval_id: pendingPreapprovalId,
+          _current_plan_code: currentPlanCode,
+          _mode: subscription.status === 'cancelled' ? 'reactivation' : 'pending_checkout',
+          _expected_billing_amount_ars: subscription.billing_amount_ars,
+          _metadata: cleanedMetadata,
+        },
+      );
+      const clearedPendingRow = isRecord(clearedPending) ? clearedPending : null;
+      const clearedUpdatedAt = typeof clearedPendingRow?.updated_at === 'string'
+        ? clearedPendingRow.updated_at
+        : null;
+      if (clearPendingError || !clearedUpdatedAt) {
+        const compensated = await reconcileOwnedPreapproval(supabaseAdmin, {
+          organizationId: context.organizationId,
+          preapprovalId: pendingPreapprovalId,
+          expectedExternalReference: pendingExternalReference,
+          logPrefix: 'subscription-cancel',
+        });
+        return jsonResponse({
+          error: compensated
+            ? 'La suscripcion cambio mientras se invalidaba el checkout. Actualiza y reintenta.'
+            : 'El checkout pendiente requiere conciliacion manual.',
+        }, compensated ? 409 : 502);
+      }
+      expectedSubscriptionUpdatedAt = clearedUpdatedAt;
+    }
+
+    if (subscription.status === 'cancelled') {
+      return jsonResponse({ ok: true, already_cancelled: true });
     }
 
     const ownedCurrent = await verifyOwnedPreapproval(
@@ -135,14 +185,41 @@ serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: 'La referencia de Mercado Pago no coincide con la suscripcion' }, 409);
     }
 
-    const mpRes = await mpPlatformFetch(`/preapproval/${encodeURIComponent(subscription.mercadopago_preapproval_id)}`, {
-      method: 'PUT',
-      body: JSON.stringify({ status: 'cancelled' }),
-    });
+    let mpRes: Response;
+    try {
+      mpRes = await mpPlatformFetch(`/preapproval/${encodeURIComponent(subscription.mercadopago_preapproval_id)}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'cancelled' }),
+      });
+    } catch {
+      const compensated = await reconcileOwnedPreapproval(supabaseAdmin, {
+        organizationId: context.organizationId,
+        preapprovalId: subscription.mercadopago_preapproval_id,
+        expectedExternalReference: subscription.mercadopago_external_reference,
+        logPrefix: 'subscription-cancel',
+      });
+      return jsonResponse({
+        error: compensated
+          ? 'No se pudo confirmar la cancelacion. Actualiza y reintenta.'
+          : 'La cancelacion requiere conciliacion manual con Mercado Pago.',
+      }, 502);
+    }
 
     if (!mpRes.ok && mpRes.status !== 404) {
       const mpError = await readMpError(mpRes);
       console.error('[subscription-cancel] MP error:', mpRes.status, mpError.code);
+      const compensated = await reconcileOwnedPreapproval(supabaseAdmin, {
+        organizationId: context.organizationId,
+        preapprovalId: subscription.mercadopago_preapproval_id,
+        expectedExternalReference: subscription.mercadopago_external_reference,
+        logPrefix: 'subscription-cancel',
+      });
+      if (!compensated) {
+        return jsonResponse({
+          error: 'La cancelacion requiere conciliacion manual con Mercado Pago.',
+          code: mpError.code,
+        }, 502);
+      }
       return jsonResponse({
         error: mpErrorMessage(mpError, mpRes.status, 'No se pudo cancelar la suscripcion'),
         code: mpError.code,
@@ -157,10 +234,10 @@ serve(async (req: Request): Promise<Response> => {
       {
         _organization_id: context.organizationId,
         _subscription_id: subscription.id,
-        _expected_subscription_updated_at: subscription.updated_at,
+        _expected_subscription_updated_at: expectedSubscriptionUpdatedAt,
         _expected_preapproval_id: subscription.mercadopago_preapproval_id,
         _cancelled_at: now,
-        _metadata: withoutPendingIntent(metadata),
+        _metadata: cleanedMetadata,
       },
     );
 
