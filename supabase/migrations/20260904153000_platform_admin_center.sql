@@ -2172,7 +2172,7 @@ BEGIN
     OR _subscription.provider <> 'mercadopago'
     OR _subscription.updated_at IS DISTINCT FROM _expected_subscription_updated_at
     OR NULLIF(_subscription.mercadopago_preapproval_id, '') IS DISTINCT FROM _expected_current_preapproval_id
-    OR CASE
+    OR (CASE
       WHEN _mode = 'reactivation' THEN COALESCE(
         _subscription.current_plan_code,
         _subscription.billing_plan_code,
@@ -2183,7 +2183,7 @@ BEGIN
         _subscription.current_plan_code,
         _subscription.billing_plan_code
       )
-    END IS DISTINCT FROM _current_plan_code
+    END) IS DISTINCT FROM _current_plan_code
     OR _subscription.pending_plan_code IS NULL THEN
     RAISE EXCEPTION 'SUBSCRIPTION_CONFLICT' USING ERRCODE = '40001';
   END IF;
@@ -2464,12 +2464,13 @@ GRANT EXECUTE ON FUNCTION public.subscription_finalize_cancellation(
 -- billing snapshots: each Mercado Pago preapproval remains pending until an
 -- authenticated administrator enables the mutation kill switch and processes
 -- this batch. On installations already at ARS 60,000 this block is a no-op.
-SET LOCAL ROLE service_role;
 DO $bootstrap$
 DECLARE
   _plan public.subscription_plans%ROWTYPE;
   _batch jsonb;
 BEGIN
+  EXECUTE 'SET LOCAL ROLE service_role';
+
   SELECT * INTO _plan
   FROM public.subscription_plans
   WHERE code = 'profesional';
@@ -2487,9 +2488,10 @@ BEGIN
     );
     PERFORM public.platform_admin_refresh_price_change_batch((_batch->>'id')::uuid);
   END IF;
+
+  EXECUTE 'RESET ROLE';
 END;
 $bootstrap$;
-RESET ROLE;
 
 -- SECURITY DEFINER EXCEPTION: this is the existing Auth trigger function. The
 -- only new behavior is the first platform_role branch, which returns before any
