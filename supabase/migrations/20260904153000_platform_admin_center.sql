@@ -200,9 +200,9 @@ ALTER TABLE public.subscription_price_change_items ENABLE ROW LEVEL SECURITY;
 -- There are intentionally no client policies. These control-plane tables are
 -- reachable only by service_role after an Edge Function has authenticated the
 -- platform administrator.
-REVOKE ALL ON TABLE public.platform_admin_audit_log FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON TABLE public.subscription_price_change_batches FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON TABLE public.subscription_price_change_items FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.platform_admin_audit_log FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON TABLE public.subscription_price_change_batches FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON TABLE public.subscription_price_change_items FROM PUBLIC, anon, authenticated, service_role;
 GRANT SELECT, INSERT, UPDATE ON TABLE public.platform_admin_audit_log TO service_role;
 GRANT SELECT, INSERT, UPDATE ON TABLE public.subscription_price_change_batches TO service_role;
 GRANT SELECT, INSERT, UPDATE ON TABLE public.subscription_price_change_items TO service_role;
@@ -569,14 +569,14 @@ SELECT
   COALESCE((SELECT jsonb_object_agg(key, value) FROM price_breakdown), '{}'::jsonb)
     AS price_changes_breakdown;
 
-REVOKE ALL ON TABLE public.platform_admin_organizations_v FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON TABLE public.platform_admin_subscriptions_v FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON TABLE public.platform_admin_payments_v FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON TABLE public.platform_admin_audit_v FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON TABLE public.platform_admin_overview_v FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON TABLE public.platform_admin_price_change_batches_v FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON TABLE public.platform_admin_price_change_items_v FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON TABLE public.platform_admin_price_impact_v FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.platform_admin_organizations_v FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON TABLE public.platform_admin_subscriptions_v FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON TABLE public.platform_admin_payments_v FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON TABLE public.platform_admin_audit_v FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON TABLE public.platform_admin_overview_v FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON TABLE public.platform_admin_price_change_batches_v FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON TABLE public.platform_admin_price_change_items_v FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON TABLE public.platform_admin_price_impact_v FROM PUBLIC, anon, authenticated, service_role;
 GRANT SELECT ON TABLE public.platform_admin_organizations_v TO service_role;
 GRANT SELECT ON TABLE public.platform_admin_subscriptions_v TO service_role;
 GRANT SELECT ON TABLE public.platform_admin_payments_v TO service_role;
