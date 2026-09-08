@@ -125,7 +125,9 @@ Las siguientes tablas tienen RLS activa, ninguna policy de acceso para
 - `subscription_price_change_batches`: plan, importes/versiones, estado,
   contadores, actor, motivo y timestamps del lote.
 - `subscription_price_change_items`: objetivo de renovación o checkout,
-  `preapproval`, claim, intentos, resultado y error sanitizado.
+  `preapproval`, referencia externa congelada, claim, tipo de mutación externa,
+  revisión exacta de la suscripción, intentos normales/de compensación, resultado
+  y error sanitizado.
 
 `subscription_plans.price_version` identifica la versión del precio.
 `organization_subscriptions` conserva `billing_amount_ars`,
@@ -135,8 +137,8 @@ vigente e intención de checkout.
 
 Las RPC nuevas son `SECURITY INVOKER`, revocadas a `anon` y `authenticated`, y
 ejecutables solo por `service_role`. Incluyen creación/reclamo/finalización/retry
-de lotes y `subscription_finalize_checkout`, que serializa la persistencia del
-checkout con cambios concurrentes de catálogo.
+de lotes, el fence y la compensación de mutaciones externas, y finalizadores CAS
+para checkout, cambios programados, reactivación y cancelación.
 
 ## Semántica de métricas
 
@@ -167,19 +169,28 @@ Flujo de una modificación:
    y no se persiste.
 3. `apply` compara importe, `price_version` y `updated_at`. Si otra sesión cambió
    el catálogo, responde conflicto y obliga a refrescar.
-4. Una RPC bloquea el plan, incrementa la versión, actualiza el catálogo y crea
-   el lote/ítems en la misma transacción.
+4. Una RPC bloquea el plan y las suscripciones afectadas, incrementa la versión,
+   actualiza el catálogo, crea el lote/ítems e invalida todo checkout pendiente
+   anterior en la misma transacción.
 5. El worker reclama hasta 20 pendientes y procesa con concurrencia máxima 5.
    Reintenta red, 408, 429 y 5xx hasta tres intentos; los errores permanentes
    quedan visibles.
-6. Antes de cada `PUT /preapproval/{id}` revalida que organización,
-   suscripción, plan e identificador local sigan siendo el objetivo, y consulta
-   Mercado Pago para confirmar moneda, referencia y vínculo.
-7. Cada resultado completa su ítem de forma idempotente. El lote solo termina
+6. Antes de cada `PUT /preapproval/{id}` revalida organización, suscripción,
+   plan e identificador; recupera y congela una referencia externa faltante
+   solo si el proveedor prueba el mismo tenant/plan; y persiste el tipo de
+   mutación junto con la revisión local exacta antes del efecto externo.
+7. Una caída o respuesta externa ambigua conserva el fence y se retoma con el
+   mismo efecto idempotente. Si la revisión local cambió, el mismo ítem restaura
+   la intención vigente o completa el precio nuevo si la suscripción sigue
+   siendo elegible. La compensación también tiene CAS y retry.
+8. Cada resultado completa su ítem de forma idempotente. El lote solo termina
    cuando todos los elegibles llegaron a estado terminal; fallos o interrupciones
    se pueden reabrir sin duplicar efectos.
 
-Los éxitos parciales no revierten el catálogo: Mercado Pago no ofrece una
+Los checkouts pendientes se convierten en tombstones inmutables y se cancelan
+en Mercado Pago; si un pago ganó la carrera y promovió el checkout antes de la
+invalidación, el worker lo reconoce como renovación activa y aplica el importe
+nuevo al próximo débito. Los éxitos parciales no revierten el catálogo: Mercado Pago no ofrece una
 transacción global y algunas renovaciones ya pueden haber cambiado. El operador
 ve el resultado y reintenta los objetivos pendientes. Los checkouts de una
 versión anterior se invalidan o reemplazan; nunca se reutilizan por conveniencia.
@@ -207,8 +218,14 @@ El webhook:
 - usa CAS por `updated_at` para evitar carreras entre eventos;
 - no retrocede períodos ante pagos antiguos y conserva una intención pendiente
   ante rechazos recuperables;
-- confirma la cancelación del vínculo anterior antes de promover un checkout
-  nuevo.
+- persiste y audita cobros de vínculos obsoletos, cancela esos vínculos y nunca
+  los usa para otorgar acceso;
+- acepta un cobro legítimo con el importe inmediatamente anterior si quedó en
+  vuelo durante un lote ya confirmado, mantiene el snapshot nuevo para el
+  próximo débito y genera una incidencia auditable;
+- primero confirma por CAS la promoción del checkout nuevo y deja un marcador
+  durable del vínculo anterior; recién después lo cancela, de modo que un retry
+  pueda terminar la limpieza sin cancelar la suscripción todavía vigente.
 
 ## Experiencia y responsive
 

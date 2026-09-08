@@ -534,7 +534,7 @@ async function bindExpectedExternalReference(
 ): Promise<boolean> {
   let update = supabaseAdmin
     .from('subscription_price_change_items')
-    .update({ expected_external_reference: externalReference.slice(0, 250) })
+    .update({ expected_external_reference: externalReference })
     .eq('id', item.id)
     .eq('status', 'processing')
     .eq('idempotency_key', item.idempotency_key)

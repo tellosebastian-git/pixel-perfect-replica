@@ -117,6 +117,17 @@ function asNonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null;
 }
 
+function firstValidDate(...values: unknown[]): Date | null {
+  for (const value of values) {
+    if (typeof value !== 'string' && typeof value !== 'number' && !(value instanceof Date)) {
+      continue;
+    }
+    const candidate = value instanceof Date ? new Date(value.getTime()) : new Date(value);
+    if (Number.isFinite(candidate.getTime())) return candidate;
+  }
+  return null;
+}
+
 function pendingPreapprovalId(
   subscription: { metadata?: unknown; mercadopago_preapproval_id?: unknown; mercadopago_status?: unknown },
 ): string | null {
@@ -149,6 +160,13 @@ function withoutScheduledRenewalMetadata(value: unknown): Record<string, unknown
   return metadata;
 }
 
+function withoutSupersededPreapprovalMetadata(value: unknown): Record<string, unknown> {
+  const metadata = isRecord(value) ? { ...value } : {};
+  delete metadata.superseded_mercadopago_preapproval_id;
+  delete metadata.superseded_mercadopago_external_reference;
+  return metadata;
+}
+
 function finiteAmount(value: unknown): number | null {
   const amount = Number(value);
   return Number.isFinite(amount) && amount >= 0 ? amount : null;
@@ -159,7 +177,11 @@ function positiveVersion(value: unknown): number | null {
   return Number.isInteger(version) && version > 0 ? version : null;
 }
 
-async function cancelSupersededPreapproval(preapprovalId: string): Promise<boolean> {
+async function cancelSupersededPreapproval(
+  preapprovalId: string,
+  organizationId: string,
+  expectedExternalReference: string | null,
+): Promise<boolean> {
   const path = `/preapproval/${encodeURIComponent(preapprovalId)}`;
   const currentResponse = await mpPlatformFetch(path);
   if (currentResponse.status === 404) return true;
@@ -170,6 +192,17 @@ async function cancelSupersededPreapproval(preapprovalId: string): Promise<boole
   }
 
   const current = await currentResponse.json() as Record<string, unknown>;
+  const providerReference = asNonEmptyString(current.external_reference);
+  const parsedReference = parseSubscriptionExternalReference(providerReference);
+  if (
+    String(current.id ?? '') !== preapprovalId ||
+    !parsedReference ||
+    parsedReference.organizationId.toLowerCase() !== organizationId.toLowerCase() ||
+    (expectedExternalReference !== null && providerReference !== expectedExternalReference)
+  ) {
+    console.error('[subscription-mp-webhook] superseded preapproval ownership mismatch');
+    return false;
+  }
   const status = asNonEmptyString(current.status)?.toLowerCase();
   if (status === 'cancelled' || status === 'canceled') return true;
 
@@ -384,6 +417,63 @@ async function persistAuthorizedPayment(
     return null;
   }
   return existing ? updateExisting(existing) : null;
+}
+
+type PreviousPriceTransition = {
+  itemId: string;
+  batchId: string;
+  nextAmountArs: number;
+  nextPriceVersion: number;
+};
+
+async function acceptedPreviousPriceTransition(
+  supabaseAdmin: ReturnType<typeof createAdminClient>,
+  input: {
+    preapprovalId: string;
+    planCode: string;
+    actualAmountArs: number;
+    targetAmountArs: number | null;
+    targetPriceVersion: number | null;
+  },
+): Promise<PreviousPriceTransition | null> {
+  if (
+    input.actualAmountArs <= 0 ||
+    input.targetAmountArs === null ||
+    input.targetPriceVersion === null ||
+    input.actualAmountArs === input.targetAmountArs
+  ) return null;
+
+  const { data: latestItem, error: itemError } = await supabaseAdmin
+    .from('subscription_price_change_items')
+    .select('id,batch_id,completed_at')
+    .eq('preapproval_id', input.preapprovalId)
+    .eq('provider_mutation_kind', 'set_amount')
+    .eq('status', 'succeeded')
+    .order('completed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (itemError || !latestItem) return null;
+
+  const { data: latestBatch, error: batchError } = await supabaseAdmin
+    .from('subscription_price_change_batches')
+    .select('id,plan_code,old_amount_ars,new_amount_ars,new_price_version')
+    .eq('id', latestItem.batch_id)
+    .maybeSingle();
+  if (
+    batchError ||
+    !latestBatch ||
+    latestBatch.plan_code !== input.planCode ||
+    finiteAmount(latestBatch.old_amount_ars) !== input.actualAmountArs ||
+    finiteAmount(latestBatch.new_amount_ars) !== input.targetAmountArs ||
+    positiveVersion(latestBatch.new_price_version) !== input.targetPriceVersion
+  ) return null;
+
+  return {
+    itemId: String(latestItem.id),
+    batchId: String(latestBatch.id),
+    nextAmountArs: input.targetAmountArs,
+    nextPriceVersion: input.targetPriceVersion,
+  };
 }
 
 async function syncPreapproval(
@@ -616,6 +706,12 @@ async function syncAuthorizedPayment(
   const isPendingCheckout = localPendingPreapprovalId === String(preapprovalId);
   const isCurrentPreapproval = subscription.mercadopago_preapproval_id === String(preapprovalId);
   const subscriptionMetadata = isRecord(subscription.metadata) ? subscription.metadata : {};
+  const recordedSupersededPreapprovalId = asNonEmptyString(
+    subscriptionMetadata.superseded_mercadopago_preapproval_id,
+  );
+  const recordedSupersededExternalReference = asNonEmptyString(
+    subscriptionMetadata.superseded_mercadopago_external_reference,
+  );
   const isScheduledRenewal = Boolean(
     !isPendingCheckout &&
     isCurrentPreapproval &&
@@ -660,8 +756,14 @@ async function syncAuthorizedPayment(
       parsedExternalReference.organizationId.toLowerCase() === tombstoneOrganizationId.toLowerCase() &&
       tombstonePlanCode === parsedExternalReference.planCode,
     );
+    const isOwnedStaleCheckout = Boolean(
+      parsedExternalReference &&
+      externalReference &&
+      parsedExternalReference.organizationId.toLowerCase() ===
+        subscription.organization_id.toLowerCase(),
+    );
 
-    if (!isInvalidatedPriceCheckout || !tombstone || !tombstoneOrganizationId) {
+    if (!isInvalidatedPriceCheckout && !isOwnedStaleCheckout) {
       console.warn('[subscription-mp-webhook] ignored stale authorized payment:', authorizedPaymentId);
       if (eventRowId) {
         const { error: ignoredEventError } = await supabaseAdmin
@@ -677,6 +779,19 @@ async function syncAuthorizedPayment(
       return true;
     }
 
+    const incidentOrganizationId = isInvalidatedPriceCheckout && tombstoneOrganizationId
+      ? tombstoneOrganizationId
+      : subscription.organization_id;
+    const incidentSubscriptionId = isInvalidatedPriceCheckout
+      ? asNonEmptyString(tombstone?.subscription_id) ?? subscription.id
+      : subscription.id;
+    const incidentPlanCode = isInvalidatedPriceCheckout && tombstonePlanCode
+      ? tombstonePlanCode
+      : parsedExternalReference?.planCode ?? null;
+    const incidentReference = isInvalidatedPriceCheckout && frozenReference
+      ? frozenReference
+      : externalReference;
+
     const stalePaymentStatus = mapPaymentStatus(authorizedPayment.status as string | undefined);
     const staleAmount = finiteAmount(
       authorizedPayment.transaction_amount ??
@@ -686,27 +801,29 @@ async function syncAuthorizedPayment(
     ) ?? 0;
     const staleCurrencyId = String(authorizedPayment.currency_id ?? 'ARS');
     const stalePaidAt = stalePaymentStatus === 'approved'
-      ? new Date(
-        authorizedPayment.date_approved ??
-        authorizedPayment.last_modified ??
-        authorizedPayment.date_created ??
-        Date.now(),
-      ).toISOString()
+      ? (firstValidDate(
+        authorizedPayment.date_approved,
+        authorizedPayment.last_modified,
+        authorizedPayment.date_created,
+      ) ?? new Date()).toISOString()
       : null;
+    const staleDueAt = firstValidDate(
+      authorizedPayment.payment_date,
+      authorizedPayment.date_created,
+    )?.toISOString() ?? null;
     const stalePeriodStart = stalePaidAt ? new Date(stalePaidAt) : null;
     const stalePeriodEnd = stalePeriodStart ? addMonths(stalePeriodStart, 1) : null;
-    const tombstoneSubscriptionId = asNonEmptyString(tombstone.subscription_id);
     const stalePayment = await persistAuthorizedPayment(
       supabaseAdmin,
       {
-        organization_id: tombstoneOrganizationId,
-        subscription_id: tombstoneSubscriptionId,
+        organization_id: incidentOrganizationId,
+        subscription_id: incidentSubscriptionId,
         mercadopago_preapproval_id: String(preapprovalId),
         mercadopago_authorized_payment_id: String(authorizedPaymentId),
       },
       {
-        plan_code: tombstonePlanCode,
-        billing_plan_code: tombstonePlanCode,
+        plan_code: incidentPlanCode,
+        billing_plan_code: incidentPlanCode,
         amount_ars: staleAmount,
         currency_id: staleCurrencyId,
         status: stalePaymentStatus,
@@ -716,7 +833,7 @@ async function syncAuthorizedPayment(
           : null,
         period_start: stalePeriodStart?.toISOString() ?? null,
         period_end: stalePeriodEnd?.toISOString() ?? null,
-        due_at: authorizedPayment.payment_date ?? authorizedPayment.date_created ?? null,
+        due_at: staleDueAt,
         paid_at: stalePaidAt,
         raw_payload: authorizedPayment,
       },
@@ -725,7 +842,11 @@ async function syncAuthorizedPayment(
 
     if (
       (stalePaymentStatus === 'approved' || stalePaymentStatus === 'in_process') &&
-      !(await cancelSupersededPreapproval(String(preapprovalId)))
+      !(await cancelSupersededPreapproval(
+        String(preapprovalId),
+        incidentOrganizationId,
+        incidentReference,
+      ))
     ) {
       return false;
     }
@@ -736,14 +857,20 @@ async function syncAuthorizedPayment(
       .insert({
         actor_user_id: null,
         actor_alias: 'mercadopago_webhook',
-        action: 'subscription_price_change.invalidated_checkout_payment',
-        target_type: 'subscription_price_change_item',
-        target_id: tombstone.id,
-        reason: 'Mercado Pago informo un cobro para un checkout invalidado por cambio de precio.',
+        action: isInvalidatedPriceCheckout
+          ? 'subscription_price_change.invalidated_checkout_payment'
+          : 'subscription.stale_preapproval_payment',
+        target_type: isInvalidatedPriceCheckout
+          ? 'subscription_price_change_item'
+          : 'organization_subscription',
+        target_id: isInvalidatedPriceCheckout ? tombstone?.id ?? null : subscription.id,
+        reason: isInvalidatedPriceCheckout
+          ? 'Mercado Pago informo un cobro para un checkout invalidado por cambio de precio.'
+          : 'Mercado Pago informo un cobro para un preapproval que ya no pertenece al estado local vigente.',
         previous_state: {},
         next_state: {
-          batchId: tombstone.batch_id,
-          planCode: tombstonePlanCode,
+          batchId: isInvalidatedPriceCheckout ? tombstone?.batch_id ?? null : null,
+          planCode: incidentPlanCode,
           amountArs: staleAmount,
           status: stalePaymentStatus,
         },
@@ -757,8 +884,8 @@ async function syncAuthorizedPayment(
       const { error: ignoredEventError } = await supabaseAdmin
         .from('mercadopago_subscription_events')
         .update({
-          organization_id: tombstoneOrganizationId,
-          subscription_id: tombstoneSubscriptionId,
+          organization_id: incidentOrganizationId,
+          subscription_id: incidentSubscriptionId,
           payment_id: stalePayment.id,
           processed_at: new Date().toISOString(),
         })
@@ -791,13 +918,16 @@ async function syncAuthorizedPayment(
     0,
   ) ?? 0;
   const paidAt = paymentStatus === 'approved'
-    ? new Date(
-      authorizedPayment.date_approved ??
-      authorizedPayment.last_modified ??
-      authorizedPayment.date_created ??
-      Date.now(),
-    ).toISOString()
+    ? (firstValidDate(
+      authorizedPayment.date_approved,
+      authorizedPayment.last_modified,
+      authorizedPayment.date_created,
+    ) ?? new Date()).toISOString()
     : null;
+  const dueAt = firstValidDate(
+    authorizedPayment.payment_date,
+    authorizedPayment.date_created,
+  )?.toISOString() ?? null;
   const planCode =
     (isPendingCheckout ? parsedExternalReference?.planCode : null) ??
     ((isPendingCheckout || isScheduledRenewal) ? subscription.pending_plan_code : null) ??
@@ -833,6 +963,24 @@ async function syncAuthorizedPayment(
     amount === finiteAmount(subscription.billing_amount_ars) &&
     currencyId === 'ARS'
   );
+  const renewalTargetAmount = isScheduledRenewal
+    ? scheduledAmount
+    : finiteAmount(subscription.billing_amount_ars);
+  const renewalTargetPriceVersion = isScheduledRenewal
+    ? scheduledPriceVersion
+    : positiveVersion(subscription.billing_price_version);
+  const previousPriceTransition = paymentStatus === 'approved' &&
+      !isPendingCheckout &&
+      currencyId === 'ARS' &&
+      (!scheduledRenewalMatchesStoredPrice || !currentRenewalMatchesStoredPrice)
+    ? await acceptedPreviousPriceTransition(supabaseAdmin, {
+      preapprovalId: String(preapprovalId),
+      planCode,
+      actualAmountArs: amount,
+      targetAmountArs: renewalTargetAmount,
+      targetPriceVersion: renewalTargetPriceVersion,
+    })
+    : null;
 
   const rawNextPaymentDate = authorizedPayment.next_payment_date
     ? new Date(authorizedPayment.next_payment_date as string)
@@ -865,7 +1013,7 @@ async function syncAuthorizedPayment(
       mercadopago_payment_id: authorizedPayment.payment_id ? String(authorizedPayment.payment_id) : null,
       period_start: approvedPeriodStart?.toISOString() ?? subscription.current_period_start,
       period_end: approvedPeriodEnd?.toISOString() ?? subscription.current_period_end,
-      due_at: authorizedPayment.payment_date ?? authorizedPayment.date_created ?? null,
+      due_at: dueAt,
       paid_at: paidAt,
       raw_payload: authorizedPayment,
     },
@@ -874,7 +1022,46 @@ async function syncAuthorizedPayment(
   if (!payment) return false;
 
   if (
+    recordedSupersededPreapprovalId &&
+    recordedSupersededPreapprovalId !== String(preapprovalId) &&
+    !(await cancelSupersededPreapproval(
+      recordedSupersededPreapprovalId,
+      subscription.organization_id,
+      recordedSupersededExternalReference,
+    ))
+  ) {
+    return false;
+  }
+
+  if (previousPriceTransition) {
+    const { error: transitionAuditError } = await supabaseAdmin
+      .from('platform_admin_audit_log')
+      .insert({
+        actor_user_id: null,
+        actor_alias: 'mercadopago_webhook',
+        action: 'subscription_price_change.previous_amount_payment',
+        target_type: 'subscription_price_change_item',
+        target_id: previousPriceTransition.itemId,
+        reason: 'Mercado Pago informo un cobro aprobado con el importe anterior durante una transicion de precio.',
+        previous_state: {
+          amountArs: amount,
+          paymentId: payment.id,
+        },
+        next_state: {
+          batchId: previousPriceTransition.batchId,
+          billingAmountArs: previousPriceTransition.nextAmountArs,
+          billingPriceVersion: previousPriceTransition.nextPriceVersion,
+        },
+        result_status: 'partial',
+        result_detail: { authorizedPaymentId: String(authorizedPaymentId) },
+        request_id: eventRowId ?? crypto.randomUUID(),
+      });
+    if (transitionAuditError && transitionAuditError.code !== '23505') return false;
+  }
+
+  if (
     paymentStatus === 'approved' &&
+    !previousPriceTransition &&
     (
       !pendingCheckoutMatchesStoredPrice ||
       !scheduledRenewalMatchesStoredPrice ||
@@ -929,24 +1116,26 @@ async function syncAuthorizedPayment(
     const previousPreapprovalId = isPendingCheckout && typeof metadata.previous_mercadopago_preapproval_id === 'string'
       ? metadata.previous_mercadopago_preapproval_id
       : null;
-    if (
-      previousPreapprovalId &&
-      previousPreapprovalId !== String(preapprovalId) &&
-      !(await cancelSupersededPreapproval(previousPreapprovalId))
-    ) {
-      return false;
-    }
-    let confirmedPriceVersion = isPendingCheckout
-      ? pendingPriceVersion
-      : isScheduledRenewal
-        ? scheduledPriceVersion
-        : positiveVersion(subscription.billing_price_version);
-    const confirmedBillingAmount = isPendingCheckout && pendingAmount !== null
-      ? pendingAmount
-      : amount;
+    const previousExternalReference = isPendingCheckout &&
+        typeof metadata.previous_mercadopago_external_reference === 'string'
+      ? metadata.previous_mercadopago_external_reference
+      : null;
+    let confirmedPriceVersion = previousPriceTransition
+      ? previousPriceTransition.nextPriceVersion
+      : isPendingCheckout
+        ? pendingPriceVersion
+        : isScheduledRenewal
+          ? scheduledPriceVersion
+          : positiveVersion(subscription.billing_price_version);
+    const confirmedBillingAmount = previousPriceTransition
+      ? previousPriceTransition.nextAmountArs
+      : isPendingCheckout && pendingAmount !== null
+        ? pendingAmount
+        : amount;
 
     if (
       !isPendingCheckout &&
+      !previousPriceTransition &&
       (!confirmedPriceVersion || finiteAmount(subscription.billing_amount_ars) !== amount)
     ) {
       const { data: catalogPlan } = await supabaseAdmin
@@ -961,7 +1150,7 @@ async function syncAuthorizedPayment(
     }
 
     const confirmedMetadata = {
-      ...(isPendingCheckout
+      ...withoutSupersededPreapprovalMetadata(isPendingCheckout
         ? withoutPendingCheckoutMetadata(metadata)
         : isScheduledRenewal
           ? withoutScheduledRenewalMetadata(metadata)
@@ -970,8 +1159,14 @@ async function syncAuthorizedPayment(
       last_confirmed_mercadopago_external_reference: externalReference,
       last_confirmed_plan_code: planCode,
       last_confirmed_payment_at: paidAt,
-      last_confirmed_amount_ars: confirmedBillingAmount,
+      last_confirmed_amount_ars: amount,
       last_confirmed_price_version: confirmedPriceVersion,
+      ...(previousPreapprovalId && previousPreapprovalId !== String(preapprovalId)
+        ? {
+          superseded_mercadopago_preapproval_id: previousPreapprovalId,
+          superseded_mercadopago_external_reference: previousExternalReference,
+        }
+        : {}),
     };
 
     const subscriptionUpdate: Record<string, unknown> = {
@@ -1012,6 +1207,20 @@ async function syncAuthorizedPayment(
       return false;
     }
 
+    if (
+      previousPreapprovalId &&
+      previousPreapprovalId !== String(preapprovalId) &&
+      !(await cancelSupersededPreapproval(
+        previousPreapprovalId,
+        subscription.organization_id,
+        previousExternalReference,
+      ))
+    ) {
+      // The durable metadata marker above makes a retry idempotently finish
+      // this cleanup without rolling back the already-authorized payment.
+      return false;
+    }
+
   } else if (paymentStatus === 'rejected' || paymentStatus === 'cancelled') {
     const hasCurrentPaidAccess = Boolean(
       subscription.current_plan_code &&
@@ -1024,6 +1233,9 @@ async function syncAuthorizedPayment(
       status: hasCurrentPaidAccess
         ? (subscription.status === 'active' ? 'active' : subscription.status)
         : 'past_due',
+      ...(recordedSupersededPreapprovalId
+        ? { metadata: withoutSupersededPreapprovalMetadata(subscriptionMetadata) }
+        : {}),
     };
 
     // A rejected/cancelled authorized-payment is an attempt outcome, not a

@@ -200,9 +200,9 @@ ALTER TABLE public.subscription_price_change_items ENABLE ROW LEVEL SECURITY;
 -- There are intentionally no client policies. These control-plane tables are
 -- reachable only by service_role after an Edge Function has authenticated the
 -- platform administrator.
-REVOKE ALL ON TABLE public.platform_admin_audit_log FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON TABLE public.subscription_price_change_batches FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON TABLE public.subscription_price_change_items FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.platform_admin_audit_log FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON TABLE public.subscription_price_change_batches FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON TABLE public.subscription_price_change_items FROM PUBLIC, anon, authenticated, service_role;
 GRANT SELECT, INSERT, UPDATE ON TABLE public.platform_admin_audit_log TO service_role;
 GRANT SELECT, INSERT, UPDATE ON TABLE public.subscription_price_change_batches TO service_role;
 GRANT SELECT, INSERT, UPDATE ON TABLE public.subscription_price_change_items TO service_role;
@@ -445,7 +445,6 @@ WITH subscription_intents AS (
     CASE
       WHEN subscription.provider <> 'mercadopago' THEN 'Proveedor no compatible'
       WHEN NULLIF(subscription.mercadopago_preapproval_id, '') IS NULL THEN 'Falta preapproval activo'
-      WHEN NULLIF(subscription.mercadopago_external_reference, '') IS NULL THEN 'Falta referencia externa activa'
       ELSE NULL
     END AS exclusion_reason
   FROM subscription_intents AS subscription
@@ -464,12 +463,6 @@ WITH subscription_intents AS (
           THEN NULLIF(subscription.mercadopago_preapproval_id, '')
         END
       ) IS NULL THEN 'Falta preapproval pendiente'
-      WHEN COALESCE(
-        NULLIF(subscription.metadata->>'pending_mercadopago_external_reference', ''),
-        CASE WHEN subscription.mercadopago_status = 'pending'
-          THEN NULLIF(subscription.mercadopago_external_reference, '')
-        END
-      ) IS NULL THEN 'Falta referencia externa pendiente'
       ELSE NULL
     END AS exclusion_reason
   FROM subscription_intents AS subscription
@@ -559,8 +552,12 @@ SELECT
   ) + (
     SELECT count(*)
     FROM public.platform_admin_audit_log
-    WHERE action = 'subscription_price_change.invalidated_checkout_payment'
-      AND result_status = 'failed'
+    WHERE action IN (
+      'subscription_price_change.invalidated_checkout_payment',
+      'subscription_price_change.previous_amount_payment',
+      'subscription.stale_preapproval_payment'
+    )
+      AND result_status IN ('partial', 'failed')
       AND created_at >= now() - interval '30 days'
   ) AS incidencias,
   COALESCE((SELECT jsonb_object_agg(key, value) FROM organization_breakdown), '{}'::jsonb)
@@ -572,14 +569,14 @@ SELECT
   COALESCE((SELECT jsonb_object_agg(key, value) FROM price_breakdown), '{}'::jsonb)
     AS price_changes_breakdown;
 
-REVOKE ALL ON TABLE public.platform_admin_organizations_v FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON TABLE public.platform_admin_subscriptions_v FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON TABLE public.platform_admin_payments_v FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON TABLE public.platform_admin_audit_v FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON TABLE public.platform_admin_overview_v FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON TABLE public.platform_admin_price_change_batches_v FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON TABLE public.platform_admin_price_change_items_v FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON TABLE public.platform_admin_price_impact_v FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.platform_admin_organizations_v FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON TABLE public.platform_admin_subscriptions_v FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON TABLE public.platform_admin_payments_v FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON TABLE public.platform_admin_audit_v FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON TABLE public.platform_admin_overview_v FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON TABLE public.platform_admin_price_change_batches_v FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON TABLE public.platform_admin_price_change_items_v FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON TABLE public.platform_admin_price_impact_v FROM PUBLIC, anon, authenticated, service_role;
 GRANT SELECT ON TABLE public.platform_admin_organizations_v TO service_role;
 GRANT SELECT ON TABLE public.platform_admin_subscriptions_v TO service_role;
 GRANT SELECT ON TABLE public.platform_admin_payments_v TO service_role;
@@ -1615,9 +1612,19 @@ BEGIN
     END IF;
   ELSIF _should_cancel THEN
     IF _subscription_found
-      AND _subscription.status = 'active'
       AND _subscription.provider = 'mercadopago'
-      AND NULLIF(_subscription.mercadopago_preapproval_id, '') = _item.preapproval_id THEN
+      AND (
+        (
+          _subscription.status = 'active'
+          AND NULLIF(_subscription.mercadopago_preapproval_id, '') = _item.preapproval_id
+        )
+        OR NULLIF(_subscription.metadata->>'pending_mercadopago_preapproval_id', '') =
+          _item.preapproval_id
+        OR (
+          _subscription.mercadopago_status = 'pending'
+          AND NULLIF(_subscription.mercadopago_preapproval_id, '') = _item.preapproval_id
+        )
+      ) THEN
       RAISE EXCEPTION 'COMPENSATION_INTENT_CHANGED' USING ERRCODE = '40001';
     END IF;
   ELSE
@@ -2083,6 +2090,10 @@ BEGIN
     OR _subscription.updated_at IS DISTINCT FROM _expected_subscription_updated_at
     OR _subscription.current_period_end IS NULL
     OR _subscription.current_period_end <= now()
+    OR _subscription.pending_plan_code IS NOT NULL
+    OR NULLIF(_subscription.metadata->>'pending_mercadopago_preapproval_id', '') IS NOT NULL
+    OR _subscription.pending_checkout_amount_ars IS NOT NULL
+    OR _subscription.pending_checkout_price_version IS NOT NULL
     OR COALESCE(
       _subscription.current_plan_code,
       _subscription.billing_plan_code,
@@ -2139,7 +2150,11 @@ BEGIN
     RAISE EXCEPTION 'SUBSCRIPTION_SERVICE_ROLE_REQUIRED' USING ERRCODE = '42501';
   END IF;
 
-  IF _mode IS NULL OR _mode NOT IN ('pending_checkout', 'scheduled_downgrade') THEN
+  IF _mode IS NULL OR _mode NOT IN (
+    'pending_checkout',
+    'scheduled_downgrade',
+    'reactivation'
+  ) THEN
     RAISE EXCEPTION 'INVALID_PENDING_CHANGE_MODE' USING ERRCODE = '22023';
   END IF;
 
@@ -2150,15 +2165,25 @@ BEGIN
   FOR UPDATE;
 
   IF NOT FOUND
-    OR _subscription.status <> 'active'
+    OR (
+      (_mode = 'reactivation' AND _subscription.status <> 'cancelled')
+      OR (_mode <> 'reactivation' AND _subscription.status <> 'active')
+    )
     OR _subscription.provider <> 'mercadopago'
     OR _subscription.updated_at IS DISTINCT FROM _expected_subscription_updated_at
     OR NULLIF(_subscription.mercadopago_preapproval_id, '') IS DISTINCT FROM _expected_current_preapproval_id
-    OR COALESCE(
-      _subscription.effective_plan_code,
-      _subscription.current_plan_code,
-      _subscription.billing_plan_code
-    ) IS DISTINCT FROM _current_plan_code
+    OR (CASE
+      WHEN _mode = 'reactivation' THEN COALESCE(
+        _subscription.current_plan_code,
+        _subscription.billing_plan_code,
+        _subscription.effective_plan_code
+      )
+      ELSE COALESCE(
+        _subscription.effective_plan_code,
+        _subscription.current_plan_code,
+        _subscription.billing_plan_code
+      )
+    END) IS DISTINCT FROM _current_plan_code
     OR _subscription.pending_plan_code IS NULL THEN
     RAISE EXCEPTION 'SUBSCRIPTION_CONFLICT' USING ERRCODE = '40001';
   END IF;
@@ -2170,7 +2195,7 @@ BEGIN
     END
   );
 
-  IF _mode = 'pending_checkout' AND (
+  IF _mode IN ('pending_checkout', 'reactivation') AND (
     NULLIF(_expected_pending_preapproval_id, '') IS NULL
     OR _pending_preapproval_id IS DISTINCT FROM _expected_pending_preapproval_id
     OR _pending_preapproval_id = _expected_current_preapproval_id
@@ -2249,9 +2274,19 @@ BEGIN
 
   IF _should_cancel THEN
     IF _subscription_found
-      AND _subscription.status = 'active'
       AND _subscription.provider = 'mercadopago'
-      AND NULLIF(_subscription.mercadopago_preapproval_id, '') = _preapproval_id THEN
+      AND (
+        (
+          _subscription.status = 'active'
+          AND NULLIF(_subscription.mercadopago_preapproval_id, '') = _preapproval_id
+        )
+        OR NULLIF(_subscription.metadata->>'pending_mercadopago_preapproval_id', '') =
+          _preapproval_id
+        OR (
+          _subscription.mercadopago_status = 'pending'
+          AND NULLIF(_subscription.mercadopago_preapproval_id, '') = _preapproval_id
+        )
+      ) THEN
       RAISE EXCEPTION 'RECONCILIATION_INTENT_CHANGED' USING ERRCODE = '40001';
     END IF;
   ELSE
@@ -2429,12 +2464,13 @@ GRANT EXECUTE ON FUNCTION public.subscription_finalize_cancellation(
 -- billing snapshots: each Mercado Pago preapproval remains pending until an
 -- authenticated administrator enables the mutation kill switch and processes
 -- this batch. On installations already at ARS 60,000 this block is a no-op.
-SET LOCAL ROLE service_role;
 DO $bootstrap$
 DECLARE
   _plan public.subscription_plans%ROWTYPE;
   _batch jsonb;
 BEGIN
+  EXECUTE 'SET LOCAL ROLE service_role';
+
   SELECT * INTO _plan
   FROM public.subscription_plans
   WHERE code = 'profesional';
@@ -2452,9 +2488,10 @@ BEGIN
     );
     PERFORM public.platform_admin_refresh_price_change_batch((_batch->>'id')::uuid);
   END IF;
+
+  EXECUTE 'RESET ROLE';
 END;
 $bootstrap$;
-RESET ROLE;
 
 -- SECURITY DEFINER EXCEPTION: this is the existing Auth trigger function. The
 -- only new behavior is the first platform_role branch, which returns before any

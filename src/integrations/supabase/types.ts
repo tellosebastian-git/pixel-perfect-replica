@@ -3554,6 +3554,8 @@ export type Database = {
           organization_id: string | null
           preapproval_id: string | null
           provider_mutation_kind: string | null
+          provider_mutation_subscription_id: string | null
+          provider_mutation_subscription_updated_at: string | null
           provider_mutation_started_at: string | null
           provider_response_ref: string | null
           requires_compensation: boolean
@@ -3579,6 +3581,8 @@ export type Database = {
           organization_id?: string | null
           preapproval_id?: string | null
           provider_mutation_kind?: string | null
+          provider_mutation_subscription_id?: string | null
+          provider_mutation_subscription_updated_at?: string | null
           provider_mutation_started_at?: string | null
           provider_response_ref?: string | null
           requires_compensation?: boolean
@@ -3604,6 +3608,8 @@ export type Database = {
           organization_id?: string | null
           preapproval_id?: string | null
           provider_mutation_kind?: string | null
+          provider_mutation_subscription_id?: string | null
+          provider_mutation_subscription_updated_at?: string | null
           provider_mutation_started_at?: string | null
           provider_response_ref?: string | null
           requires_compensation?: boolean
@@ -5358,6 +5364,8 @@ export type Database = {
           organization_id: string | null
           preapproval_id: string | null
           provider_mutation_kind: string | null
+          provider_mutation_subscription_id: string | null
+          provider_mutation_subscription_updated_at: string | null
           provider_mutation_started_at: string | null
           provider_response_ref: string | null
           requires_compensation: boolean
@@ -5374,6 +5382,7 @@ export type Database = {
       }
       platform_admin_complete_price_change_compensation: {
         Args: {
+          _complete_price_change: boolean
           _compensation_attempts: number
           _expected_amount_ars: number
           _expected_claimed_at: string
@@ -5435,6 +5444,8 @@ export type Database = {
           _expected_claimed_at: string
           _expected_idempotency_key: string
           _expected_preapproval_id: string
+          _expected_subscription_id: string
+          _expected_subscription_updated_at: string
           _item_id: string
           _mutation_kind: string
         }
