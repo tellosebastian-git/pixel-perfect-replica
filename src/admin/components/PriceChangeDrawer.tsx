@@ -145,9 +145,14 @@ export function PriceChangeDrawer({
       onOpenChange(false);
     } catch (error) {
       const status = typeof error === 'object' && error && 'status' in error ? Number(error.status) : null;
+      const code = typeof error === 'object' && error && 'code' in error && typeof error.code === 'string'
+        ? error.code
+        : null;
       setPassword('');
       setSubmitError(
-        status === 409
+        code === 'MUTATIONS_DISABLED'
+          ? 'La edición de precios está deshabilitada en producción. Habilitala desde la configuración del servidor y volvé a intentarlo.'
+          : status === 409
           ? 'El precio cambió en otra sesión. Cerrá este panel, actualizá los planes y volvé a intentarlo.'
           : 'No se pudo aplicar el cambio. Verificá la contraseña y el estado de la operación.',
       );

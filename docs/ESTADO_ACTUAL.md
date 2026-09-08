@@ -1,11 +1,12 @@
 # Estado actual — Vittro
 
-Última actualización: 2026-09-05
+Última actualización: 2026-09-08
 
 ## Centro de administración de plataforma
 
-**Implementación en repositorio completa; rollout externo pendiente —
-2026-09-05.** Se incorporó una cuarta superficie en `/admin`, separada del árbol
+**Desplegado en producción; mutaciones habilitadas y primera validación real de
+Mercado Pago pendiente — 2026-09-08.** Se incorporó una cuarta superficie en
+`/admin`, separada del árbol
 tenant. Sus rutas no montan `OrganizationProvider`, `SucursalProvider`,
 onboarding ni `SubscriptionGate`; usan `AdminAuthProvider`, un cliente Supabase
 propio con `sessionStorage` y una clave de almacenamiento independiente. La
@@ -40,10 +41,12 @@ vencidas, canceladas y legacy permanecen diferenciados.
 Precios: `subscription_plans.amount_ars` quedó como única fuente consumida por
 Homepage, Registro, Facturación, `SubscriptionGate` y checkout. El precio lleva
 `price_version`; las suscripciones conservan snapshots de importe/versión de
-facturación y checkout pendiente. La migración preparada establece Profesional
-en ARS 60.000 mediante un lote auditable al aplicarse y elimina el campo legacy
-`plan_features.price_monthly`. Un checkout pendiente solo se reutiliza cuando
-plan, importe, versión, moneda, referencia y estado del proveedor coinciden.
+facturación y checkout pendiente. La migración aplicada establece Profesional
+en ARS 60.000 mediante un lote auditable solo si el importe anterior difiere; en
+este despliegue ya estaba en ARS 60.000 y ese bloque fue un no-op. También elimina
+el campo legacy `plan_features.price_monthly`. Un checkout pendiente solo se
+reutiliza cuando plan, importe, versión, moneda, referencia y estado del proveedor
+coinciden.
 
 La edición de precio usa preview, confirmación del impacto, motivo y
 reautenticación con contraseña. La RPC `SECURITY INVOKER` actualiza catálogo y
@@ -71,17 +74,30 @@ conserva el nuevo snapshot para el siguiente débito y abre una incidencia. La
 promoción de un checkout se confirma antes de cancelar el vínculo anterior, cuyo
 identificador queda guardado para completar esa limpieza en un retry.
 
-**No está desplegado ni habilitado en producción.** Quedan pendientes, fuera de
-esta sesión local: revisión y aplicación de
-`20260904153000_platform_admin_center.sql` mediante Lovable (incluye la excepción
-de provisioning sobre la función existente `handle_new_user`, que es
-`SECURITY DEFINER`); creación y confirmación de la cuenta técnica en Supabase
-Auth; asignación server-side del claim; configuración de secrets/orígenes;
-deploy de Edge Functions; regeneración de tipos contra la base migrada; QA
-autenticado; prueba integral de precio/checkout/webhook en Mercado Pago sandbox;
-y, solo después, activación de `PLATFORM_ADMIN_PRICE_MUTATIONS_ENABLED`. Hasta
-completar esos pasos, `/admin` no debe considerarse operativo fuera del entorno
-local ni las mutaciones de precio habilitadas.
+La migración `20260904153000_platform_admin_center.sql` fue aplicada directamente
+en Supabase producción el 2026-09-08, como única migración dentro de una sola
+transacción y con autorización explícita para la modificación de
+`handle_new_user`. La cuenta técnica está confirmada, conserva exclusivamente el
+claim de plataforma y no tiene perfiles, roles ni sucursales tenant. Frontend y
+Edge Functions están desplegados. Se verificaron los endpoints administrativos,
+el origen CORS de `https://www.vittro.com.ar` y el flujo autenticado hasta el
+backend.
+
+`PLATFORM_ADMIN_PRICE_MUTATIONS_ENABLED=true` quedó activo en producción el
+2026-09-08. Antes de activarlo, el preflight encontró el catálogo en Básico ARS
+30.000, Profesional ARS 60.000 y Premium ARS 100.000, todos en versión 1; 29
+suscripciones locales activas y 4 en trial; y una sola suscripción activa con un
+`preapproval` de Mercado Pago cuyo estado local era `pending`. No había lotes,
+ítems ni auditorías de cambio de precio, y el intento bloqueado por
+`503 MUTATIONS_DISABLED` no produjo modificaciones.
+
+Todavía no se ejecutó una mutación real después de la activación. Siguen
+pendientes el primer cambio controlado, la verificación del lote y auditoría, la
+reconciliación del efecto real en Mercado Pago y la prueba del webhook asociado;
+también falta registrar el QA responsive autenticado completo. Ante una anomalía,
+el rollback operativo es configurar
+`PLATFORM_ADMIN_PRICE_MUTATIONS_ENABLED=false`: bloquea nuevas acciones de
+mutación, pero no deshace cambios de catálogo ni efectos externos ya confirmados.
 
 ## Sistema de diseño — Operate
 
