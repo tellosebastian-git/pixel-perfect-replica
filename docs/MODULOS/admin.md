@@ -8,11 +8,12 @@ están aplicados en el entorno productivo. Se verificaron el acceso autenticado,
 los endpoints administrativos y la política CORS para
 `https://www.vittro.com.ar`.
 
-`PLATFORM_ADMIN_PRICE_MUTATIONS_ENABLED` está en `true`, pero todavía no se
-ejecutó ni validó el primer cambio real de precio después de habilitarlo. Por lo
-tanto, la propagación completa a Mercado Pago, el resultado del lote y el
-webhook posterior continúan pendientes de una prueba controlada. Habilitado no
-equivale aún a validado de punta a punta.
+`PLATFORM_ADMIN_PRICE_MUTATIONS_ENABLED` está en `true`. El 2026-09-08 se
+ejecutaron tres cambios reales y el catálogo quedó en Básico ARS 20.000,
+Profesional ARS 30.000 y Premium ARS 50.000, todos en `price_version = 2`.
+Homepage y Registro fueron verificados contra esos importes. Facturación,
+`SubscriptionGate`, la reconciliación del caso Básico y el webhook posterior
+continúan pendientes de validación.
 
 La migración es `supabase/migrations/20260904153000_platform_admin_center.sql`.
 Modifica una función `SECURITY DEFINER` preexistente (`handle_new_user`), por lo
@@ -29,6 +30,19 @@ Preflight productivo registrado antes de habilitar las mutaciones:
   renovación autorizada sin revalidar el preview y el proveedor.
 - No existían lotes, ítems ni eventos de auditoría de cambio de precio. El
   intento que devolvió `503 MUTATIONS_DISABLED` no modificó el catálogo.
+
+Resultado de los cambios reales del 2026-09-08:
+
+- **Básico:** ARS 30.000 → ARS 20.000, versión 2, lote `partial`. De sus 27
+  ítems, 26 terminaron `skipped` por `missing_preapproval` y 1 terminó `failed`
+  por `provider_not_active`. Este caso requiere reconciliación antes de dar por
+  validada la propagación del plan.
+- **Profesional:** ARS 60.000 → ARS 30.000, versión 2, lote `complete` sin
+  ítems elegibles.
+- **Premium:** ARS 100.000 → ARS 50.000, versión 2, lote `complete`. Terminó
+  con 1 ítem exitoso y 2 `skipped` por `provider_not_supported`.
+- Totales: 3 lotes, 30 ítems y 6 eventos de auditoría. No quedaron ítems
+  `pending` ni checkouts pendientes reutilizables.
 
 El impacto debe recalcularse con `preview` inmediatamente antes de confirmar
 cada cambio. El rollback operativo del permiso es volver a configurar
@@ -311,15 +325,19 @@ la cuenta en el repositorio o en un nombre `VITE_*`.
   suscripción modificadas desplegadas.
 - [x] Endpoints, CORS y autenticación de `/admin` verificados en producción.
 - [x] Kill switch de precios habilitado el 2026-09-08.
-- [ ] Ejecutar un primer cambio de precio controlado y verificar catálogo, lote,
-  auditoría y resultado real en Mercado Pago. Esta prueba no debe marcarse como
-  cumplida solamente porque `apply` deje de devolver `503`.
+- [x] Ejecutados tres cambios reales; verificados catálogo, lotes, auditoría y
+  resultados diferenciados de Mercado Pago.
+- [x] Homepage y Registro verificados con ARS 20.000 / 30.000 / 50.000.
+- [ ] Reconciliar el lote parcial de Básico y resolver o clasificar definitivamente
+  su caso `provider_not_active`.
 - [ ] Completar la matriz de renovación activa, checkout pendiente, conflicto,
   fallos transitorios, retry y webhook firmado.
+- [ ] Verificar los precios y estados en Facturación y `SubscriptionGate`, además
+  del webhook posterior a un cambio aplicable.
 - [ ] Registrar QA responsive autenticado en 390, 768/1024 y 1440 px, incluida
   la convivencia y el cierre independiente de sesiones.
 
-Si aparece un comportamiento inesperado durante la primera mutación, configurar
+Si aparece un comportamiento inesperado durante una mutación, configurar
 de inmediato `PLATFORM_ADMIN_PRICE_MUTATIONS_ENABLED=false`, conservar el lote y
 la auditoría para diagnóstico y no intentar una reversión manual del catálogo o
 de Mercado Pago sin reconciliar primero el estado de ambos sistemas.

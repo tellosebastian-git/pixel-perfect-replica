@@ -4,10 +4,10 @@
 
 ## Centro de administración de plataforma
 
-**Desplegado en producción; mutaciones habilitadas y primera validación real de
-Mercado Pago pendiente — 2026-09-08.** Se incorporó una cuarta superficie en
-`/admin`, separada del árbol
-tenant. Sus rutas no montan `OrganizationProvider`, `SucursalProvider`,
+**Desplegado en producción; tres cambios reales ejecutados y reconciliación
+parcial pendiente — 2026-09-08.** Se incorporó una cuarta superficie en
+`/admin`, separada del árbol tenant. Sus rutas no montan
+`OrganizationProvider`, `SucursalProvider`,
 onboarding ni `SubscriptionGate`; usan `AdminAuthProvider`, un cliente Supabase
 propio con `sessionStorage` y una clave de almacenamiento independiente. La
 sesión administrativa puede convivir con una sesión tenant en el mismo navegador
@@ -91,11 +91,21 @@ suscripciones locales activas y 4 en trial; y una sola suscripción activa con u
 ítems ni auditorías de cambio de precio, y el intento bloqueado por
 `503 MUTATIONS_DISABLED` no produjo modificaciones.
 
-Todavía no se ejecutó una mutación real después de la activación. Siguen
-pendientes el primer cambio controlado, la verificación del lote y auditoría, la
-reconciliación del efecto real en Mercado Pago y la prueba del webhook asociado;
-también falta registrar el QA responsive autenticado completo. Ante una anomalía,
-el rollback operativo es configurar
+Después de la activación se ejecutaron tres cambios reales. Básico pasó de ARS
+30.000 a ARS 20.000 y versión 2 con resultado `partial`: 26 ítems quedaron
+`skipped` por `missing_preapproval` y 1 `failed` por `provider_not_active`.
+Profesional pasó de ARS 60.000 a ARS 30.000 y versión 2 con lote `complete` sin
+ítems elegibles. Premium pasó de ARS 100.000 a ARS 50.000 y versión 2 con lote
+`complete`: 1 ítem terminó exitosamente y 2 quedaron `skipped` por
+`provider_not_supported`.
+
+El resultado acumulado es de 3 lotes, 30 ítems y 6 eventos de auditoría. No
+quedaron ítems `pending` ni checkouts pendientes reutilizables. Homepage y
+Registro fueron verificados mostrando ARS 20.000 / 30.000 / 50.000. Siguen
+pendientes la reconciliación del lote parcial de Básico y el QA de Facturación,
+`SubscriptionGate` y el webhook posterior; también falta registrar el QA
+responsive autenticado completo. Ante una anomalía, el rollback operativo es
+configurar
 `PLATFORM_ADMIN_PRICE_MUTATIONS_ENABLED=false`: bloquea nuevas acciones de
 mutación, pero no deshace cambios de catálogo ni efectos externos ya confirmados.
 
