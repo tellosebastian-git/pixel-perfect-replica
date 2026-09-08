@@ -87,9 +87,17 @@ export async function reconcileOwnedPreapproval(
       return false;
     }
 
-    const providerRead = await mpPlatformFetch(
-      `/preapproval/${encodeURIComponent(input.preapprovalId)}`,
-    );
+    let providerRead: Response;
+    try {
+      providerRead = await mpPlatformFetch(
+        `/preapproval/${encodeURIComponent(input.preapprovalId)}`,
+      );
+    } catch (error) {
+      console.warn(`[${input.logPrefix}] compensation read failed:`,
+        error instanceof Error ? error.message : 'network_error');
+      if (attempt < MAX_ATTEMPTS) continue;
+      return false;
+    }
     if (providerRead.status === 404 && shouldRestore) {
       console.error(`[${input.logPrefix}] current preapproval is missing during compensation`);
       return false;
@@ -120,22 +128,30 @@ export async function reconcileOwnedPreapproval(
       const alreadyCancelled = !shouldRestore &&
         (providerStatus === 'cancelled' || providerStatus === 'canceled');
       if (!alreadyCancelled) {
-        const providerUpdate = await mpPlatformFetch(
-          `/preapproval/${encodeURIComponent(input.preapprovalId)}`,
-          {
-            method: 'PUT',
-            headers: { 'X-Idempotency-Key': crypto.randomUUID() },
-            body: JSON.stringify(shouldRestore
-              ? {
-                status: 'authorized',
-                auto_recurring: {
-                  transaction_amount: desiredAmount,
-                  currency_id: 'ARS',
-                },
-              }
-              : { status: 'cancelled' }),
-          },
-        );
+        let providerUpdate: Response;
+        try {
+          providerUpdate = await mpPlatformFetch(
+            `/preapproval/${encodeURIComponent(input.preapprovalId)}`,
+            {
+              method: 'PUT',
+              headers: { 'X-Idempotency-Key': crypto.randomUUID() },
+              body: JSON.stringify(shouldRestore
+                ? {
+                  status: 'authorized',
+                  auto_recurring: {
+                    transaction_amount: desiredAmount,
+                    currency_id: 'ARS',
+                  },
+                }
+                : { status: 'cancelled' }),
+            },
+          );
+        } catch (error) {
+          console.warn(`[${input.logPrefix}] compensation update failed:`,
+            error instanceof Error ? error.message : 'network_error');
+          if (attempt < MAX_ATTEMPTS) continue;
+          return false;
+        }
         if (providerUpdate.status === 404 && shouldRestore) return false;
         if (!providerUpdate.ok && !(providerUpdate.status === 404 && !shouldRestore)) {
           const providerError = await readMpError(providerUpdate);

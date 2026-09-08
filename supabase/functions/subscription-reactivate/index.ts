@@ -41,6 +41,32 @@ function withoutPendingCheckoutMetadata(value: unknown): Record<string, unknown>
   return metadata;
 }
 
+async function cancelOwnedPendingPreapproval(
+  preapprovalId: string,
+  externalReference: string,
+  organizationId: string,
+): Promise<boolean> {
+  const path = `/preapproval/${encodeURIComponent(preapprovalId)}`;
+  const readResponse = await mpPlatformFetch(path);
+  if (readResponse.status === 404) return true;
+  if (!readResponse.ok) return false;
+  const provider = await readResponse.json() as Record<string, unknown>;
+  const parsedReference = parseSubscriptionExternalReference(provider.external_reference);
+  if (
+    String(provider.id ?? '') !== preapprovalId ||
+    provider.external_reference !== externalReference ||
+    parsedReference?.organizationId.toLowerCase() !== organizationId.toLowerCase()
+  ) return false;
+  const status = String(provider.status ?? '').toLowerCase();
+  if (status === 'cancelled' || status === 'canceled') return true;
+  if (status !== 'pending') return false;
+  const cancelResponse = await mpPlatformFetch(path, {
+    method: 'PUT',
+    body: JSON.stringify({ status: 'cancelled' }),
+  });
+  return cancelResponse.ok || cancelResponse.status === 404;
+}
+
 serve(async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -99,6 +125,62 @@ serve(async (req: Request): Promise<Response> => {
       }, 409);
     }
 
+    const subscriptionMetadata = isRecord(subscription.metadata) ? subscription.metadata : {};
+    const pendingPreapprovalId = typeof subscriptionMetadata.pending_mercadopago_preapproval_id === 'string'
+      ? subscriptionMetadata.pending_mercadopago_preapproval_id
+      : null;
+    const pendingExternalReference = typeof subscriptionMetadata.pending_mercadopago_external_reference === 'string'
+      ? subscriptionMetadata.pending_mercadopago_external_reference
+      : null;
+    const cleanedMetadata = withoutPendingCheckoutMetadata(subscriptionMetadata);
+    let expectedSubscriptionUpdatedAt = subscription.updated_at;
+
+    if (pendingPreapprovalId && pendingPreapprovalId !== subscription.mercadopago_preapproval_id) {
+      if (
+        !pendingExternalReference ||
+        !(await cancelOwnedPendingPreapproval(
+          pendingPreapprovalId,
+          pendingExternalReference,
+          context.organizationId,
+        ))
+      ) {
+        return jsonResponse({ error: 'No se pudo invalidar el checkout pendiente' }, 409);
+      }
+
+      const { data: clearedPending, error: clearPendingError } = await supabaseAdmin.rpc(
+        'subscription_finalize_pending_plan_cancellation',
+        {
+          _organization_id: context.organizationId,
+          _subscription_id: subscription.id,
+          _expected_subscription_updated_at: subscription.updated_at,
+          _expected_current_preapproval_id: subscription.mercadopago_preapproval_id,
+          _expected_pending_preapproval_id: pendingPreapprovalId,
+          _current_plan_code: planCode,
+          _mode: 'reactivation',
+          _expected_billing_amount_ars: subscription.billing_amount_ars,
+          _metadata: cleanedMetadata,
+        },
+      );
+      const clearedPendingRow = isRecord(clearedPending) ? clearedPending : null;
+      const clearedUpdatedAt = typeof clearedPendingRow?.updated_at === 'string'
+        ? clearedPendingRow.updated_at
+        : null;
+      if (clearPendingError || !clearedUpdatedAt) {
+        const compensated = await reconcileOwnedPreapproval(supabaseAdmin, {
+          organizationId: context.organizationId,
+          preapprovalId: pendingPreapprovalId,
+          expectedExternalReference: pendingExternalReference,
+          logPrefix: 'subscription-reactivate',
+        });
+        return jsonResponse({
+          error: compensated
+            ? 'La suscripcion cambio mientras se invalidaba el checkout. Actualiza y reintenta.'
+            : 'El checkout pendiente requiere conciliacion manual.',
+        }, compensated ? 409 : 502);
+      }
+      expectedSubscriptionUpdatedAt = clearedUpdatedAt;
+    }
+
 
     const { data: plan, error: planError } = await supabaseAdmin
       .from('subscription_plans')
@@ -149,20 +231,47 @@ serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: 'La referencia de Mercado Pago no coincide con la suscripcion' }, 409);
     }
 
-    const mpRes = await mpPlatformFetch(`/preapproval/${encodeURIComponent(subscription.mercadopago_preapproval_id)}`, {
-      method: 'PUT',
-      body: JSON.stringify({
-        status: 'authorized',
-        auto_recurring: {
-          transaction_amount: amount,
-          currency_id: 'ARS',
-        },
-      }),
-    });
+    let mpRes: Response;
+    try {
+      mpRes = await mpPlatformFetch(`/preapproval/${encodeURIComponent(subscription.mercadopago_preapproval_id)}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          status: 'authorized',
+          auto_recurring: {
+            transaction_amount: amount,
+            currency_id: 'ARS',
+          },
+        }),
+      });
+    } catch {
+      const compensated = await reconcileOwnedPreapproval(supabaseAdmin, {
+        organizationId: context.organizationId,
+        preapprovalId: subscription.mercadopago_preapproval_id,
+        expectedExternalReference: subscription.mercadopago_external_reference,
+        logPrefix: 'subscription-reactivate',
+      });
+      return jsonResponse({
+        error: compensated
+          ? 'No se pudo confirmar la reactivacion. Actualiza y reintenta.'
+          : 'La reactivacion requiere conciliacion manual con Mercado Pago.',
+      }, 502);
+    }
 
     if (!mpRes.ok) {
       const mpError = await readMpError(mpRes);
       console.warn('[subscription-reactivate] MP could not reactivate:', mpRes.status, mpError.code);
+      const compensated = await reconcileOwnedPreapproval(supabaseAdmin, {
+        organizationId: context.organizationId,
+        preapprovalId: subscription.mercadopago_preapproval_id,
+        expectedExternalReference: subscription.mercadopago_external_reference,
+        logPrefix: 'subscription-reactivate',
+      });
+      if (!compensated) {
+        return jsonResponse({
+          error: 'La reactivacion requiere conciliacion manual con Mercado Pago.',
+          code: mpError.code,
+        }, 502);
+      }
       return jsonResponse({
         ok: false,
         requires_checkout: true,
@@ -176,13 +285,13 @@ serve(async (req: Request): Promise<Response> => {
       {
         _organization_id: context.organizationId,
         _subscription_id: subscription.id,
-        _expected_subscription_updated_at: subscription.updated_at,
+        _expected_subscription_updated_at: expectedSubscriptionUpdatedAt,
         _expected_preapproval_id: subscription.mercadopago_preapproval_id,
         _plan_code: planCode,
         _expected_amount_ars: amount,
         _expected_price_version: priceVersion,
         _expected_plan_updated_at: plan.updated_at,
-        _metadata: withoutPendingCheckoutMetadata(subscription.metadata),
+        _metadata: cleanedMetadata,
       },
     );
 

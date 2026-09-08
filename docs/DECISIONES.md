@@ -83,6 +83,13 @@ rollback automático ante éxito parcial: revertir el catálogo no podría desha
 de forma atómica las renovaciones externas ya actualizadas y produciría una
 segunda divergencia. El estado parcial queda visible para intervención y retry.
 
+Cada ítem persiste, antes del efecto externo, el `preapproval`, la operación y la
+revisión exacta de la suscripción. Si esa revisión cambia, no se declara éxito a
+partir de una lectura tardía: se reconcilia Mercado Pago con la intención más
+reciente y se confirma con otro CAS. Si el plan/preapproval todavía son el
+objetivo del lote, la reconciliación termina de aplicar el precio nuevo; solo una
+intención realmente reemplazada se compensa y queda excluida.
+
 ## Las métricas globales usan vigencia efectiva, no etiquetas ambiguas
 
 “Barbería con acceso” significa organización habilitada con trial o período de
@@ -101,8 +108,10 @@ importe, plan, referencia, período y vínculo local; usa una actualización CAS
 para impedir que eventos concurrentes o fuera de orden retrocedan el estado. Si
 falta el secret de firma, falla cerrado salvo un opt-in explícito y limitado a
 sandbox. La intención local de checkout se conserva frente a rechazos
-recuperables, y la cancelación del vínculo anterior se confirma antes de promover
-el nuevo.
+recuperables. Al promover uno nuevo, primero se confirma el estado local por CAS
+y se persiste un marcador del vínculo reemplazado; después se cancela ese vínculo
+de forma idempotente. Así una carrera no puede cancelar la suscripción que aún
+figura vigente y un retry puede terminar la limpieza.
 
 ## La excepción de provisioning requiere Lovable
 

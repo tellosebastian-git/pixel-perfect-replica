@@ -245,9 +245,17 @@ serve(async (req: Request): Promise<Response> => {
           },
         );
         if (clearError || !cleared) {
+          const compensated = await reconcileOwnedPreapproval(supabaseAdmin, {
+            organizationId: context.organizationId,
+            preapprovalId: pendingPreapprovalId,
+            expectedExternalReference: pendingExternalReference,
+            logPrefix: 'subscription-change-plan',
+          });
           return jsonResponse({
-            error: 'La suscripcion cambio mientras se invalidaba el checkout. Actualiza y reintenta.',
-          }, 409);
+            error: compensated
+              ? 'La suscripcion cambio mientras se invalidaba el checkout. Actualiza y reintenta.'
+              : 'El checkout se invalido y Mercado Pago requiere conciliacion manual.',
+          }, compensated ? 409 : 502);
         }
 
         return jsonResponse({ ok: true, change_type: 'pending_change_cancelled' });
