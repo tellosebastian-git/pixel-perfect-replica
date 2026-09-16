@@ -1,9 +1,8 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
-import { perfStart, withTimeout, isTimeoutError } from '@/lib/perfLog';
-
-const ORGANIZATION_TIMEOUT_MS = 12000;
+import { perfStart } from '@/lib/perfLog';
+import { ReadCancelledError, ReadFailure, runReadWithRetry } from '@/lib/readRetry';
 
 
 interface Organization {
@@ -40,100 +39,90 @@ interface OrganizationContextType {
 const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
 
 export function OrganizationProvider({ children }: { children: ReactNode }) {
-  const { user, isLoading: authLoading } = useAuth();
-  const [organization, setOrganization] = useState<Organization | null>(null);
+  const { user, profile, isLoading: authLoading, authError } = useAuth();
+  const [storedOrganization, setOrganization] = useState<Organization | null>(null);
   const [planFeatures, setPlanFeatures] = useState<PlanFeatures | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [storedError, setError] = useState<string | null>(null);
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const generationRef = useRef(0);
+  const controllerRef = useRef<AbortController | null>(null);
 
-  const fetchOrganization = async () => {
+  const readyProfile = !authLoading && !authError && user && profile?.id === user.id ? profile : null;
+  const orgId = readyProfile?.organization_id ?? null;
+  const currentKey = readyProfile ? `${readyProfile.id}:${orgId ?? 'none'}` : null;
+  const organization = loadedKey === currentKey ? storedOrganization : null;
+  const error = loadedKey === currentKey ? storedError : null;
+
+  const fetchOrganization = useCallback(async () => {
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    const generation = ++generationRef.current;
+    setLoadedKey(currentKey);
+    setOrganization(null);
+    setPlanFeatures(null);
     setError(null);
 
-    if (!user) {
-      setOrganization(null);
-      setPlanFeatures(null);
+    if (!currentKey) {
+      setIsLoading(false);
+      return;
+    }
+    if (!orgId) {
+      setError('Tu cuenta no tiene una organización asignada.');
       setIsLoading(false);
       return;
     }
 
     setIsLoading(true);
     const perf = perfStart('organization');
-
     try {
-      const loader = (async () => {
-        // 1. Resolver organization_id desde el profile.
-        const { data: profileRow, error: profileErr } = await supabase
-          .from('profiles')
-          .select('organization_id')
-          .eq('id', user.id)
-          .maybeSingle();
-        if (profileErr) throw profileErr;
-
-        const orgId = profileRow?.organization_id;
-        if (!orgId) return { org: null as Organization | null, noOrg: true };
-
-        // 2. Cargar organización por id explícito.
-        const { data: orgData, error: orgErr } = await supabase
+      const org = await runReadWithRetry<Organization | null>(async signal => {
+        const { data, error: queryError, status } = await supabase
           .from('organizations')
           .select('*')
           .eq('id', orgId)
-          .maybeSingle();
-        if (orgErr) throw orgErr;
-        return { org: (orgData as Organization | null) ?? null, noOrg: false };
-      })();
-
-      const { org, noOrg } = await withTimeout(loader, ORGANIZATION_TIMEOUT_MS, 'fetchOrganization');
-
-      if (noOrg) {
-        setOrganization(null);
-        setPlanFeatures(null);
-        setError('Tu cuenta no tiene una organización asignada.');
-        perf.success({ result: 'no-org' });
-        return;
-      }
+          .maybeSingle()
+          .abortSignal(signal);
+        return { data: data as Organization | null, error: queryError, status };
+      }, { signal: controller.signal });
+      if (generationRef.current !== generation || controller.signal.aborted) return;
       if (!org) {
-        setOrganization(null);
-        setPlanFeatures(null);
         setError('No pudimos cargar tu organización.');
         perf.success({ result: 'empty' });
         return;
       }
-
       setOrganization(org);
       perf.success({ result: 'ok' });
 
-      // 3. Plan features en background: nunca bloquea ni rompe el flujo.
-      (async () => {
+      // Optional plan features never block access and cannot write after a tenant switch.
+      void (async () => {
         try {
-          const { data: featuresData } = await supabase
+          const { data } = await supabase
             .from('plan_features')
             .select('max_barbers, max_services, can_export_reports, can_view_analytics')
             .eq('plan', org.plan)
-            .maybeSingle();
-          if (featuresData) setPlanFeatures(featuresData as PlanFeatures);
+            .maybeSingle()
+            .abortSignal(controller.signal);
+          if (generationRef.current === generation && !controller.signal.aborted && data) {
+            setPlanFeatures(data as PlanFeatures);
+          }
         } catch (planErr) {
-          console.warn('[Org] plan_features:error', planErr);
+          if (!controller.signal.aborted) console.warn('[Org] plan_features:error', planErr);
         }
       })();
-
     } catch (err) {
-      if (isTimeoutError(err)) perf.timeout(); else perf.error(err);
-      setOrganization(null);
-      setPlanFeatures(null);
-      setError(
-        isTimeoutError(err)
-          ? 'La carga de tu organización está tardando demasiado. Probá reintentar.'
-          : 'No pudimos cargar tu organización. Reintentá en unos segundos.',
-      );
+      if (err instanceof ReadCancelledError || controller.signal.aborted) return;
+      if (err instanceof ReadFailure && err.message === 'read_timeout') perf.timeout(); else perf.error(err);
+      if (generationRef.current === generation) {
+        setError('No pudimos cargar tu organización. Probá reintentar.');
+      }
     } finally {
-      setIsLoading(false);
+      if (generationRef.current === generation) setIsLoading(false);
     }
-  };
+  }, [currentKey, orgId]);
 
-
-  const refreshOrganization = async () => {
-    await fetchOrganization();
-  };
+  const refreshOrganization = async () => { await fetchOrganization(); };
 
   const updateOrganization = async (updates: Partial<Organization>) => {
     if (!organization) {
@@ -150,7 +139,9 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         return { error: updErr };
       }
 
-      setOrganization(prev => prev ? { ...prev, ...updates } : null);
+      if (currentKey && loadedKey === currentKey) {
+        setOrganization(prev => prev?.id === organization.id ? { ...prev, ...updates } : prev);
+      }
       return { error: null };
     } catch (err) {
       return { error: err as Error };
@@ -158,18 +149,16 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    if (!authLoading) {
-      fetchOrganization();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, authLoading]);
+    void fetchOrganization();
+    return () => controllerRef.current?.abort();
+  }, [fetchOrganization]);
 
   return (
     <OrganizationContext.Provider
       value={{
         organization,
-        planFeatures,
-        isLoading: isLoading || authLoading,
+        planFeatures: loadedKey === currentKey ? planFeatures : null,
+        isLoading: authLoading || Boolean(currentKey && (loadedKey !== currentKey || isLoading)),
         error,
         refreshOrganization,
         updateOrganization,

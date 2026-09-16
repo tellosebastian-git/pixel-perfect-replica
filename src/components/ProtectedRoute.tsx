@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { useAuth, AppRole } from '@/contexts/AuthContext';
 import { useOrganization } from '@/contexts/OrganizationContext';
+import { useSucursal } from '@/contexts/SucursalContext';
 import { ChangePasswordForm } from './ChangePasswordForm';
 import { LoadingScreen, RecoverableErrorScreen, useLoadingScreenMounted } from './LoadingScreen';
 import { SubscriptionGate } from './billing/SubscriptionGate';
@@ -13,8 +14,9 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requiredRoles }: ProtectedRouteProps) {
-  const { user, roles, isLoading, authError, mustChangePassword, signOut, refreshProfile } = useAuth();
+  const { user, roles, isLoading, authError, mustChangePassword, signOut, refreshProfile, retrySessionRestore } = useAuth();
   const { organization, isLoading: orgLoading, error: orgError, refreshOrganization } = useOrganization();
+  const { isLoading: sucursalLoading, error: sucursalError, refreshSucursales } = useSucursal();
   const {
     access: subscriptionAccess,
     isLoading: subscriptionLoading,
@@ -23,8 +25,8 @@ export function ProtectedRoute({ children, requiredRoles }: ProtectedRouteProps)
   } = useSubscriptionAccess();
   const { orgSlug } = useParams<{ orgSlug?: string }>();
   const [passwordChanged, setPasswordChanged] = useState(false);
-  const authOrgSubscriptionLoading = isLoading || orgLoading || subscriptionLoading;
-  const showLoadingScreen = useLoadingScreenMounted(authOrgSubscriptionLoading);
+  const contextLoading = isLoading || orgLoading || sucursalLoading || subscriptionLoading;
+  const showLoadingScreen = useLoadingScreenMounted(contextLoading);
 
   // 1a. Error explícito cargando perfil/roles → no esperar 90s, mostrar pantalla recuperable.
   if (user && authError && !isLoading) {
@@ -45,11 +47,13 @@ export function ProtectedRoute({ children, requiredRoles }: ProtectedRouteProps)
   if (showLoadingScreen) {
     return (
       <LoadingScreen
-        loading={authOrgSubscriptionLoading}
+        loading={contextLoading}
         message="Verificando sesión..."
         onRetry={() => {
-          void refreshOrganization();
-          void refreshAccess();
+          if (isLoading) void retrySessionRestore();
+          else if (orgLoading) void refreshOrganization();
+          else if (sucursalLoading) void refreshSucursales();
+          else void refreshAccess();
         }}
       />
     );
@@ -78,6 +82,20 @@ export function ProtectedRoute({ children, requiredRoles }: ProtectedRouteProps)
         title="Tu sesión se inició, pero no pudimos cargar los datos de tu organización"
         description={orgError}
         onRetry={() => refreshOrganization()}
+        onSignOut={async () => {
+          await signOut();
+          window.location.href = '/login';
+        }}
+      />
+    );
+  }
+
+  if (organization && sucursalError) {
+    return (
+      <RecoverableErrorScreen
+        title="Tu sesión se inició, pero no pudimos cargar tus sucursales"
+        description={sucursalError}
+        onRetry={() => void refreshSucursales()}
         onSignOut={async () => {
           await signOut();
           window.location.href = '/login';

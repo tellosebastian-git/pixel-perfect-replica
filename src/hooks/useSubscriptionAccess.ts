@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabaseUntyped } from '@/lib/supabaseUntyped';
@@ -33,49 +33,64 @@ interface UseSubscriptionAccessResult {
 export function useSubscriptionAccess(): UseSubscriptionAccessResult {
   const { user } = useAuth();
   const { organization } = useOrganization();
-  const [access, setAccess] = useState<SubscriptionAccess | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [storedAccess, setAccess] = useState<SubscriptionAccess | null>(null);
+  const [localLoading, setLocalLoading] = useState(false);
+  const [storedError, setError] = useState<string | null>(null);
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const generationRef = useRef(0);
+  const controllerRef = useRef<AbortController | null>(null);
+  const orgId = organization?.id;
+  const currentKey = user && orgId ? `${user.id}:${orgId}` : null;
+  const access = currentKey && loadedKey === currentKey && storedAccess?.organization_id === orgId
+    ? storedAccess : null;
+  const error = currentKey && loadedKey === currentKey ? storedError : null;
 
   const fetchAccess = useCallback(async () => {
-    if (!user || !organization?.id) {
-      setAccess(null);
-      setError(null);
-      setIsLoading(false);
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    const generation = ++generationRef.current;
+    setLoadedKey(currentKey);
+    setAccess(null);
+    setError(null);
+    if (!currentKey || !orgId) {
+      setLocalLoading(false);
       return;
     }
-
-    setIsLoading(true);
-    setError(null);
+    setLocalLoading(true);
 
     try {
       const { data, error: rpcError } = await supabaseUntyped
-        .rpc('get_organization_subscription_access', { _org_id: organization.id });
+        .rpc('get_organization_subscription_access', { _org_id: orgId })
+        .abortSignal(controller.signal);
 
+      if (generationRef.current !== generation || controller.signal.aborted) return;
       if (rpcError) throw rpcError;
 
       const row = Array.isArray(data) ? data[0] : data;
-      if (!row) {
+      if (!row || row.organization_id !== orgId) {
         throw new Error('No pudimos cargar el estado de la suscripción.');
       }
 
       setAccess(row as SubscriptionAccess);
     } catch (err) {
+      if (generationRef.current !== generation || controller.signal.aborted) return;
       console.error('[subscription-access] error:', err);
       setAccess(null);
       setError('No pudimos verificar el estado de la suscripción.');
     } finally {
-      setIsLoading(false);
+      if (generationRef.current === generation) setLocalLoading(false);
     }
-  }, [organization?.id, user]);
+  }, [currentKey, orgId]);
 
   useEffect(() => {
     void fetchAccess();
+    return () => controllerRef.current?.abort();
   }, [fetchAccess]);
 
   return {
     access,
-    isLoading,
+    isLoading: Boolean(currentKey && (loadedKey !== currentKey || localLoading)),
     error,
     refreshAccess: fetchAccess,
   };
