@@ -1,6 +1,6 @@
 # Estado actual — Vittro
 
-Última actualización: 2026-09-08
+
 
 ## Centro de administración de plataforma
 
@@ -355,5 +355,8 @@ Estadísticas, Finanzas) que no se trasladaron todavía a este formato.
   dedicada.
 - Bug de notificaciones leídas que reaparecen (hipótesis: `notification_reads`
   legacy huérfano al cambiar `notifications.type`) — sin fix.
-- Bug post-login intermitente — refactor parcial aplicado, cadena
-  Auth→Org→Sucursal sigue siendo secuencial.
+- Bug post-login intermitente — corrección de cliente implementada y validada
+  localmente el 2026-09-16; pendiente despliegue, QA autenticado en producción
+  y comprobación de límites de sesión vigentes en Supabase antes de retirarlo
+  de la deuda. La secuencia Auth→Org→Sucursal sigue siendo dependiente por
+  seguridad, pero cada fase tiene retry/cancelación y recuperación propia.

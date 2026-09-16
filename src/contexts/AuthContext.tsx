@@ -1,9 +1,8 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { perfStart, perfEvent, withTimeout, isTimeoutError } from '@/lib/perfLog';
-
-const PROFILE_ROLES_TIMEOUT_MS = 12000;
+import { perfStart, withTimeout } from '@/lib/perfLog';
+import { ReadCancelledError, ReadFailure, runReadWithRetry } from '@/lib/readRetry';
 
 
 export type AppRole = 'owner' | 'general_manager' | 'manager' | 'barber' | 'sucursal_account' | 'otros';
@@ -13,6 +12,8 @@ interface Profile {
   email: string;
   full_name: string | null;
   barbero_id: string | null;
+  organization_id: string | null;
+  default_sucursal_id: string | null;
 }
 
 interface AuthContextType {
@@ -43,10 +44,11 @@ interface AuthContextType {
   canViewFinanzas: boolean;
   canViewTurnosAgenda: boolean;
   canViewClientes: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null; userId: string | null }>;
   signUp: (email: string, password: string, fullName: string, businessName?: string, country?: string, plan?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  retrySessionRestore: () => Promise<void>;
 }
 
 
@@ -60,31 +62,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Race-guard: tracks the user.id whose hydration is in flight so duplicate
-  // events for the same session don't pile up and pisar estados.
   const hydratingForRef = useRef<string | null>(null);
-  // Track last fully-hydrated user id; lets us skip redundant rehydrations.
   const hydratedForRef = useRef<string | null>(null);
+  const currentSessionRef = useRef<Session | null>(null);
+  const requestGenerationRef = useRef(0);
+  const requestControllerRef = useRef<AbortController | null>(null);
+  const initialEventHandledRef = useRef(false);
 
-  const fetchProfileAndRoles = async (userId: string) => {
-    const [profileRes, rolesRes] = await Promise.all([
-      supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
-      supabase.from('user_roles').select('role').eq('user_id', userId),
+  const fetchProfileAndRoles = async (userId: string, signal: AbortSignal) => {
+    const [nextProfile, nextRoles] = await Promise.all([
+      runReadWithRetry<Profile | null>(async attemptSignal => {
+        const { data, error, status } = await supabase
+          .from('profiles')
+          .select('id, email, full_name, barbero_id, organization_id, default_sucursal_id')
+          .eq('id', userId)
+          .maybeSingle()
+          .abortSignal(attemptSignal);
+        return { data: data as Profile | null, error, status };
+      }, { signal }),
+      runReadWithRetry<AppRole[]>(async attemptSignal => {
+        const { data, error, status } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', userId)
+          .abortSignal(attemptSignal);
+        return { data: (data ?? []).map(row => row.role as AppRole), error, status };
+      }, { signal }),
     ]);
-    if (profileRes.error) throw profileRes.error;
-    if (rolesRes.error) throw rolesRes.error;
-    return {
-      profile: (profileRes.data as Profile | null) ?? null,
-      roles: (rolesRes.data ?? []).map(r => r.role as AppRole),
-    };
+    if (!nextProfile) throw new Error('profile_missing');
+    return { profile: nextProfile, roles: nextRoles };
   };
 
-  // Idempotent session hydration. Used by both getSession() and onAuthStateChange.
-  const hydrateSession = async (nextSession: Session | null) => {
-    // No session → clear everything synchronously.
+  const hydrateSession = async (nextSession: Session | null, force = false) => {
     if (!nextSession) {
+      requestGenerationRef.current += 1;
+      requestControllerRef.current?.abort();
+      requestControllerRef.current = null;
       hydratingForRef.current = null;
       hydratedForRef.current = null;
+      currentSessionRef.current = null;
       setSession(null);
       setUser(null);
       setProfile(null);
@@ -96,82 +112,112 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const nextUserId = nextSession.user.id;
+    const previousUserId = currentSessionRef.current?.user.id;
+    currentSessionRef.current = nextSession;
+    setSession(nextSession);
+    setUser(nextSession.user);
 
-    // Same user already hydrated AND not currently hydrating → just refresh session token state.
-    if (hydratedForRef.current === nextUserId && hydratingForRef.current === null) {
-      setSession(nextSession);
-      setUser(nextSession.user);
+    if (!force && hydratedForRef.current === nextUserId && hydratingForRef.current === null) {
       setIsLoading(false);
       return;
     }
 
-    // Same user already hydrating → ignore duplicate.
-    if (hydratingForRef.current === nextUserId) {
-      return;
-    }
+    if (!force && hydratingForRef.current === nextUserId) return;
 
+    requestControllerRef.current?.abort();
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
+    const generation = ++requestGenerationRef.current;
     hydratingForRef.current = nextUserId;
-    setSession(nextSession);
-    setUser(nextSession.user);
+    if (previousUserId !== nextUserId || force) {
+      setProfile(null);
+      setRoles([]);
+    }
+    setIsLoading(true);
     setAuthError(null);
     const perf = perfStart('profileRoles');
 
     try {
-      const { profile: nextProfile, roles: nextRoles } = await withTimeout(
-        fetchProfileAndRoles(nextUserId),
-        PROFILE_ROLES_TIMEOUT_MS,
-        'fetchProfileAndRoles',
-      );
+      const { profile: nextProfile, roles: nextRoles } = await fetchProfileAndRoles(nextUserId, controller.signal);
       perf.success({ rolesCount: nextRoles.length });
-      // Only commit if still the active hydration target (avoid stale writes after fast switch).
-      if (hydratingForRef.current === nextUserId) {
+      if (requestGenerationRef.current === generation && !controller.signal.aborted) {
         setProfile(nextProfile);
         setRoles(nextRoles);
         setAuthError(null);
         hydratedForRef.current = nextUserId;
       }
     } catch (err) {
-      if (isTimeoutError(err)) perf.timeout(); else perf.error(err);
-      if (hydratingForRef.current === nextUserId) {
-        // Keep user/session, clear derived data to avoid false permissions.
+      if (err instanceof ReadCancelledError || controller.signal.aborted) return;
+      // Promise.all can reject while its sibling read is still running.
+      controller.abort();
+      if (err instanceof ReadFailure && err.message === 'read_timeout') perf.timeout(); else perf.error(err);
+      if (requestGenerationRef.current === generation) {
         setProfile(null);
         setRoles([]);
         hydratedForRef.current = null;
         setAuthError(
-          isTimeoutError(err)
-            ? 'No pudimos cargar tu perfil. La conexión está tardando demasiado.'
-            : 'No pudimos cargar tu perfil y permisos. Reintentá en unos segundos.',
+          err instanceof Error && err.message === 'profile_missing'
+            ? 'No encontramos el perfil de esta cuenta.'
+            : 'No pudimos cargar tu perfil y permisos. Probá reintentar.',
         );
       }
     } finally {
-      // Liberar SIEMPRE el ref, no solo cuando coincide con el target activo.
-      // Evita que un hydrate colgado bloquee futuros eventos de auth.
-      hydratingForRef.current = null;
-      setIsLoading(false);
+      if (requestGenerationRef.current === generation) {
+        hydratingForRef.current = null;
+        requestControllerRef.current = null;
+        setIsLoading(false);
+      }
     }
   };
 
   const refreshProfile = async () => {
-    if (user) {
-      // Force rehydrate by clearing the cache key.
-      hydratedForRef.current = null;
-      hydratingForRef.current = null;
-      setIsLoading(true);
-      await hydrateSession(session);
+    if (currentSessionRef.current) await hydrateSession(currentSessionRef.current, true);
+  };
+
+  const retrySessionRestore = async () => {
+    if (currentSessionRef.current) {
+      await hydrateSession(currentSessionRef.current, true);
+      return;
+    }
+    setIsLoading(true);
+    setAuthError(null);
+    try {
+      const { data, error } = await withTimeout(supabase.auth.getSession(), 12000, 'getSession');
+      if (error) throw error;
+      if (!currentSessionRef.current) await hydrateSession(data.session);
+    } catch (err) {
+      console.error('[Auth] phase=restore:error', err);
+      if (!currentSessionRef.current) {
+        setAuthError('No pudimos verificar tu sesión. Probá reintentar.');
+        setIsLoading(false);
+      }
     }
   };
 
 
   useEffect(() => {
-    // Listener FIRST (Supabase recommendation). Defer with setTimeout(0) to avoid
-    // blocking the auth callback and prevent deadlocks.
+    // INITIAL_SESSION is the sole startup source. Never await Supabase calls in this callback.
+    let mounted = true;
+    initialEventHandledRef.current = false;
+    const startupTimer = window.setTimeout(() => {
+      if (!initialEventHandledRef.current && mounted) {
+        setAuthError('No pudimos verificar tu sesión. Probá reintentar.');
+        setIsLoading(false);
+      }
+    }, 15000);
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (!mounted) return;
+      if (event === 'INITIAL_SESSION' && initialEventHandledRef.current) return;
+      if (event === 'INITIAL_SESSION' && currentSessionRef.current &&
+          nextSession?.user.id !== currentSessionRef.current.user.id) return;
+      initialEventHandledRef.current = true;
+      window.clearTimeout(startupTimer);
       console.info('[Auth] phase=onAuthStateChange event=', event);
       console.info('[Auth][DIAG]', {
         timestamp: new Date().toISOString(),
         event,
         nextSessionIsNull: !nextSession,
-        hadPreviousSession: !!session,
+        hadPreviousSession: !!currentSessionRef.current,
       });
 
       // Clear localStorage hint when verified.
@@ -180,32 +226,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
 
-      setTimeout(() => {
-        hydrateSession(nextSession);
+      window.setTimeout(() => {
+        if (mounted) void hydrateSession(nextSession);
       }, 0);
     });
 
-    // Then check existing session.
-    console.info('[Auth] phase=getSession:start');
-    supabase.auth.getSession()
-      .then(({ data: { session: existing } }) => {
-        console.info('[Auth] phase=getSession:done hasSession=', !!existing);
-        hydrateSession(existing);
-      })
-      .catch(err => {
-        console.error('[Auth] phase=getSession:error', err);
-        setIsLoading(false);
-      });
-
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      window.clearTimeout(startupTimer);
+      requestGenerationRef.current += 1;
+      requestControllerRef.current?.abort();
+      requestControllerRef.current = null;
+      hydratingForRef.current = null;
+      subscription.unsubscribe();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const signIn = async (email: string, password: string) => {
     const perf = perfStart('signIn');
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) perf.error(error); else perf.success();
-    return { error };
+    if (data.session) void hydrateSession(data.session);
+    return { error: error ?? (data.session ? null : new Error('No pudimos iniciar la sesión. Probá de nuevo.')), userId: data.session?.user.id ?? null };
   };
 
 
@@ -228,12 +271,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
-    hydratingForRef.current = null;
-    hydratedForRef.current = null;
-    setUser(null);
-    setSession(null);
-    setProfile(null);
-    setRoles([]);
+    await hydrateSession(null);
   };
 
   // Computed permissions based on roles
@@ -295,7 +333,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signIn,
         signUp,
         signOut,
-        refreshProfile
+        refreshProfile,
+        retrySessionRestore
       }}
     >
       {children}

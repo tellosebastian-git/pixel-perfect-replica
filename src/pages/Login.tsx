@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { useOrganization } from '@/contexts/OrganizationContext';
+import { LoadingScreen, RecoverableErrorScreen } from '@/components/LoadingScreen';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -26,8 +26,7 @@ import { COUNTRIES } from '@/lib/dateUtils';
 export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { signIn, signUp, authError } = useAuth();
-  const { organization, error: orgError } = useOrganization();
+  const { user, session, isLoading: authLoading, authError, signIn, signUp, signOut, retrySessionRestore } = useAuth();
   const {
     data: subscriptionPlans = [],
     isLoading: plansLoading,
@@ -38,9 +37,8 @@ export default function Login() {
     searchParams.get('mode') === 'signup' ? 'register' : 'login'
   );
   const [showPassword, setShowPassword] = useState(false);
-  // Cuando true: signIn ya tuvo éxito y estamos esperando que el contexto
-  // cargue la organización para navegar a /app/<slug>.
-  const [waitingOrg, setWaitingOrg] = useState(false);
+  const [waitingUserId, setWaitingUserId] = useState<string | null>(null);
+  const loginAttemptRef = useRef(false);
 
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -60,59 +58,23 @@ export default function Login() {
     return plansLoading ? 'Cargando precio…' : plansError ? 'Precio no disponible' : 'Consultar precio';
   };
 
-  // Watcher post-login: cuando la org carga, navegamos. Si hay error de auth/org,
-  // mostramos toast y soltamos el botón. Si pasa el timeout local de seguridad,
-  // mandamos al usuario a la pantalla recuperable de la app.
-  const watchdogRef = useRef<number | null>(null);
   useEffect(() => {
-    if (!waitingOrg) return;
-
-    // Éxito: tenemos org → navegar.
-    if (organization?.slug) {
-      perfEvent('postAuth:navigate', { slug: organization.slug });
-      navigate(`/app/${organization.slug}`, { replace: true });
-      setWaitingOrg(false);
-      setIsLoading(false);
-      return;
-    }
-
-    // Error claro (auth o org): permitir reintentar desde el form.
-    const err = authError ?? orgError;
-    if (err) {
-      perfEvent('postAuth:error', { error: err });
-      toast.error('Tu sesión se inició, pero hubo un problema cargando tu cuenta', { description: err });
-      setWaitingOrg(false);
-      setIsLoading(false);
-      return;
-    }
-
-    // Watchdog de seguridad: si en 20s no hubo ni org ni error, mandamos al
-    // usuario al app igual; ProtectedRoute mostrará LoadingScreen o la
-    // pantalla recuperable según corresponda. Nunca redirigimos silenciosamente a "/".
-    if (watchdogRef.current == null) {
-      watchdogRef.current = window.setTimeout(() => {
-        perfEvent('postAuth:watchdog-handoff');
-        toast.info('Estamos terminando de cargar tu cuenta...');
-        navigate('/app/_', { replace: true });
-        setWaitingOrg(false);
-        setIsLoading(false);
-      }, 20000);
-    }
-
-    return () => {
-      if (watchdogRef.current != null) {
-        clearTimeout(watchdogRef.current);
-        watchdogRef.current = null;
-      }
-    };
-  }, [waitingOrg, organization?.slug, authError, orgError, navigate]);
+    if (mode !== 'login' || !user || !session) return;
+    if (loginAttemptRef.current && !waitingUserId) return;
+    if (waitingUserId && waitingUserId !== user.id) return;
+    perfEvent('postAuth:navigate', { userId: user.id });
+    navigate('/app/_', { replace: true });
+  }, [mode, user, session, waitingUserId, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    loginAttemptRef.current = true;
+    setWaitingUserId(null);
     setIsLoading(true);
     try {
-      const { error } = await signIn(loginEmail, loginPassword);
+      const { error, userId } = await signIn(loginEmail, loginPassword);
       if (error) {
+        loginAttemptRef.current = false;
         toast.error('Error al iniciar sesión', {
           description: error.message === 'Invalid login credentials'
             ? 'Email o contraseña incorrectos'
@@ -122,12 +84,11 @@ export default function Login() {
         return;
       }
 
-      toast.success('¡Bienvenido!');
-      perfEvent('postAuth:waiting-org');
-      // No re-consultamos profile/org acá. AuthContext + OrganizationContext
-      // ya están hidratando. El useEffect de arriba navega cuando la org esté lista.
-      setWaitingOrg(true);
+      perfEvent('postAuth:session-accepted', { userId });
+      setWaitingUserId(userId);
+      loginAttemptRef.current = false;
     } catch (err) {
+      loginAttemptRef.current = false;
       console.error('[Login] handleLogin:error', err);
       toast.error('Ocurrió un error al ingresar. Probá de nuevo.');
       setIsLoading(false);
@@ -193,6 +154,27 @@ export default function Login() {
       });
     }
   };
+
+  if (mode === 'login' && (authLoading || (user && session))) {
+    return (
+      <LoadingScreen
+        loading={true}
+        message="Verificando sesión..."
+        onRetry={() => void retrySessionRestore()}
+      />
+    );
+  }
+
+  if (mode === 'login' && authError) {
+    return (
+      <RecoverableErrorScreen
+        title="No pudimos verificar tu sesión"
+        description={authError}
+        onRetry={() => void retrySessionRestore()}
+        onSignOut={() => void signOut()}
+      />
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-white lg:flex-row">
