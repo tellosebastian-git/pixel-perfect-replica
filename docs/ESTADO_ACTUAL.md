@@ -1,12 +1,41 @@
 # Estado actual — Vittro
 
-Última actualización: 2026-09-05
+Última actualización: 2026-09-16
+
+## Acceso tenant — implementado localmente, pendiente QA en producción
+
+El cliente tenant conserva `localStorage`, `persistSession` y renovación
+automática de Supabase. La homepage no redirige por sí sola: al entrar a
+`/login`, se espera `INITIAL_SESSION` antes de mostrar el formulario. Si hay
+sesión vigente se navega a `/app/_`; la ruta protegida carga el contexto y
+resuelve el slug. `?mode=signup`, recuperación de contraseña y `/admin` siguen
+separados. El login nuevo espera que el contexto acepte una sesión del mismo
+usuario antes de navegar.
+
+Perfil (con `organization_id` y sucursal predeterminada) y roles se cargan sin
+duplicar la consulta de perfil. Las lecturas de perfil, roles, organización y
+sucursales usan hasta dos reintentos solo ante fallos transitorios, timeout por
+intento y `AbortController`. Los datos de perfil, organización, sucursales y
+suscripción se ocultan al cambiar de usuario u organización; respuestas tardías
+no pueden reponer el tenant anterior. Un fallo de red no se interpreta como
+ausencia de organización. Las pantallas recuperables existentes permiten
+reintentar la fase fallida sin volver a pedir contraseña. La suscripción mantiene
+su lectura actual y retry manual, ahora cancelable y vinculada al tenant vigente.
+
+Validación local: diff revisado, TypeScript, build de producción, lint focal sin
+errores y 25 tests Vitest aprobados (incluyen 15 nuevos de acceso/retry/
+aislamiento). No se desplegó ni se hizo QA con una cuenta real en producción;
+la duración efectiva de sesiones configurada en Supabase producción tampoco
+pudo leerse. No se cambiaron Auth, RLS, base de datos ni APIs públicas del
+servidor. El fallo CORS/REST del gateway puede repetirse, pero la recuperación
+del cliente ya no depende de un error anterior ni exige un segundo login.
 
 ## Centro de administración de plataforma
 
-**Implementación en repositorio completa; rollout externo pendiente —
-2026-09-05.** Se incorporó una cuarta superficie en `/admin`, separada del árbol
-tenant. Sus rutas no montan `OrganizationProvider`, `SucursalProvider`,
+**Desplegado en producción; tres cambios reales ejecutados y reconciliación
+parcial pendiente — 2026-09-08.** Se incorporó una cuarta superficie en
+`/admin`, separada del árbol tenant. Sus rutas no montan
+`OrganizationProvider`, `SucursalProvider`,
 onboarding ni `SubscriptionGate`; usan `AdminAuthProvider`, un cliente Supabase
 propio con `sessionStorage` y una clave de almacenamiento independiente. La
 sesión administrativa puede convivir con una sesión tenant en el mismo navegador
@@ -40,10 +69,12 @@ vencidas, canceladas y legacy permanecen diferenciados.
 Precios: `subscription_plans.amount_ars` quedó como única fuente consumida por
 Homepage, Registro, Facturación, `SubscriptionGate` y checkout. El precio lleva
 `price_version`; las suscripciones conservan snapshots de importe/versión de
-facturación y checkout pendiente. La migración preparada establece Profesional
-en ARS 60.000 mediante un lote auditable al aplicarse y elimina el campo legacy
-`plan_features.price_monthly`. Un checkout pendiente solo se reutiliza cuando
-plan, importe, versión, moneda, referencia y estado del proveedor coinciden.
+facturación y checkout pendiente. La migración aplicada establece Profesional
+en ARS 60.000 mediante un lote auditable solo si el importe anterior difiere; en
+este despliegue ya estaba en ARS 60.000 y ese bloque fue un no-op. También elimina
+el campo legacy `plan_features.price_monthly`. Un checkout pendiente solo se
+reutiliza cuando plan, importe, versión, moneda, referencia y estado del proveedor
+coinciden.
 
 La edición de precio usa preview, confirmación del impacto, motivo y
 reautenticación con contraseña. La RPC `SECURITY INVOKER` actualiza catálogo y
@@ -71,17 +102,40 @@ conserva el nuevo snapshot para el siguiente débito y abre una incidencia. La
 promoción de un checkout se confirma antes de cancelar el vínculo anterior, cuyo
 identificador queda guardado para completar esa limpieza en un retry.
 
-**No está desplegado ni habilitado en producción.** Quedan pendientes, fuera de
-esta sesión local: revisión y aplicación de
-`20260904153000_platform_admin_center.sql` mediante Lovable (incluye la excepción
-de provisioning sobre la función existente `handle_new_user`, que es
-`SECURITY DEFINER`); creación y confirmación de la cuenta técnica en Supabase
-Auth; asignación server-side del claim; configuración de secrets/orígenes;
-deploy de Edge Functions; regeneración de tipos contra la base migrada; QA
-autenticado; prueba integral de precio/checkout/webhook en Mercado Pago sandbox;
-y, solo después, activación de `PLATFORM_ADMIN_PRICE_MUTATIONS_ENABLED`. Hasta
-completar esos pasos, `/admin` no debe considerarse operativo fuera del entorno
-local ni las mutaciones de precio habilitadas.
+La migración `20260904153000_platform_admin_center.sql` fue aplicada directamente
+en Supabase producción el 2026-09-08, como única migración dentro de una sola
+transacción y con autorización explícita para la modificación de
+`handle_new_user`. La cuenta técnica está confirmada, conserva exclusivamente el
+claim de plataforma y no tiene perfiles, roles ni sucursales tenant. Frontend y
+Edge Functions están desplegados. Se verificaron los endpoints administrativos,
+el origen CORS de `https://www.vittro.com.ar` y el flujo autenticado hasta el
+backend.
+
+`PLATFORM_ADMIN_PRICE_MUTATIONS_ENABLED=true` quedó activo en producción el
+2026-09-08. Antes de activarlo, el preflight encontró el catálogo en Básico ARS
+30.000, Profesional ARS 60.000 y Premium ARS 100.000, todos en versión 1; 29
+suscripciones locales activas y 4 en trial; y una sola suscripción activa con un
+`preapproval` de Mercado Pago cuyo estado local era `pending`. No había lotes,
+ítems ni auditorías de cambio de precio, y el intento bloqueado por
+`503 MUTATIONS_DISABLED` no produjo modificaciones.
+
+Después de la activación se ejecutaron tres cambios reales. Básico pasó de ARS
+30.000 a ARS 20.000 y versión 2 con resultado `partial`: 26 ítems quedaron
+`skipped` por `missing_preapproval` y 1 `failed` por `provider_not_active`.
+Profesional pasó de ARS 60.000 a ARS 30.000 y versión 2 con lote `complete` sin
+ítems elegibles. Premium pasó de ARS 100.000 a ARS 50.000 y versión 2 con lote
+`complete`: 1 ítem terminó exitosamente y 2 quedaron `skipped` por
+`provider_not_supported`.
+
+El resultado acumulado es de 3 lotes, 30 ítems y 6 eventos de auditoría. No
+quedaron ítems `pending` ni checkouts pendientes reutilizables. Homepage y
+Registro fueron verificados mostrando ARS 20.000 / 30.000 / 50.000. Siguen
+pendientes la reconciliación del lote parcial de Básico y el QA de Facturación,
+`SubscriptionGate` y el webhook posterior; también falta registrar el QA
+responsive autenticado completo. Ante una anomalía, el rollback operativo es
+configurar
+`PLATFORM_ADMIN_PRICE_MUTATIONS_ENABLED=false`: bloquea nuevas acciones de
+mutación, pero no deshace cambios de catálogo ni efectos externos ya confirmados.
 
 ## Sistema de diseño — Operate
 
@@ -329,5 +383,8 @@ Estadísticas, Finanzas) que no se trasladaron todavía a este formato.
   dedicada.
 - Bug de notificaciones leídas que reaparecen (hipótesis: `notification_reads`
   legacy huérfano al cambiar `notifications.type`) — sin fix.
-- Bug post-login intermitente — refactor parcial aplicado, cadena
-  Auth→Org→Sucursal sigue siendo secuencial.
+- Bug post-login intermitente — corrección de cliente implementada y validada
+  localmente el 2026-09-16; pendiente despliegue, QA autenticado en producción
+  y comprobación de límites de sesión vigentes en Supabase antes de retirarlo
+  de la deuda. La secuencia Auth→Org→Sucursal sigue siendo dependiente por
+  seguridad, pero cada fase tiene retry/cancelación y recuperación propia.

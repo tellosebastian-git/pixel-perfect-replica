@@ -5,6 +5,24 @@ ver `ESTADO_ACTUAL.md`. Para la especificación normativa vigente del sistema
 visual, ver `DESIGN.md` — este archivo no repite esa especificación, solo el
 contexto y el razonamiento detrás de cada decisión.
 
+## La sesión tenant se reutiliza, no se prolonga artificialmente
+
+Para reducir logins repetidos se aprovecha la sesión que Supabase ya persiste
+en `localStorage` y renueva con refresh tokens. La homepage permanece pública;
+el acceso por `/login` restaura la sesión si aún es válida y delega la
+verificación de organización a la ruta protegida. No se agregan cookies propias,
+un control “recordarme” ni un JWT más largo: sumarían complejidad o riesgo sin
+resolver el fallo de carga del perfil. La duración real sigue gobernada por la
+configuración central de Supabase, que debe verificarse en producción antes de
+prometer un plazo concreto. Un logout explícito siempre exige un login nuevo.
+
+Las lecturas del contexto tenant usan reintentos acotados solo para errores
+transitorios y cancelación de peticiones. Mantener la sesión ante un fallo REST
+permite que “Reintentar” recupere la fase fallida sin contraseña; asociar cada
+respuesta a usuario/organización evita mostrar datos de un tenant anterior.
+Una ausencia confirmada, 401 o denegación de permisos no se reintenta
+automáticamente.
+
 ## Por qué existe la regla de color de chip
 
 La especificación vigente (`bg-primary/10` = se edita acá, `bg-muted` = atajo

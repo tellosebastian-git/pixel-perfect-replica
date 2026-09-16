@@ -2,16 +2,53 @@
 
 ## Estado de rollout
 
-El módulo está implementado en el repositorio, pero **no está desplegado ni
-habilitado en producción**. La migración está preparada, no aplicada; la cuenta
-técnica no fue provisionada; las Edge Functions y variables aún deben
-configurarse en el entorno objetivo; y falta la prueba integral autenticada en
-Mercado Pago sandbox. Mientras eso no ocurra, `/admin` no debe considerarse una
-superficie operativa fuera del entorno local.
+**Desplegado en producción y con mutaciones de precio habilitadas desde el
+2026-09-08.** La migración, la cuenta técnica, el frontend y las Edge Functions
+están aplicados en el entorno productivo. Se verificaron el acceso autenticado,
+los endpoints administrativos y la política CORS para
+`https://www.vittro.com.ar`.
+
+`PLATFORM_ADMIN_PRICE_MUTATIONS_ENABLED` está en `true`. El 2026-09-08 se
+ejecutaron tres cambios reales y el catálogo quedó en Básico ARS 20.000,
+Profesional ARS 30.000 y Premium ARS 50.000, todos en `price_version = 2`.
+Homepage y Registro fueron verificados contra esos importes. Facturación,
+`SubscriptionGate`, la reconciliación del caso Básico y el webhook posterior
+continúan pendientes de validación.
 
 La migración es `supabase/migrations/20260904153000_platform_admin_center.sql`.
 Modifica una función `SECURITY DEFINER` preexistente (`handle_new_user`), por lo
-que, conforme a `AGENTS.md`, solo puede revisarse y aplicarse mediante Lovable.
+que fue aplicada como una excepción puntual autorizada, en una sola transacción
+y sin ejecutar otras migraciones. No debe reaplicarse durante el rollout.
+
+Preflight productivo registrado antes de habilitar las mutaciones:
+
+- Catálogo: Básico ARS 30.000, Profesional ARS 60.000 y Premium ARS 100.000;
+  todos en `price_version = 1`.
+- Había 29 suscripciones locales `active` y 4 `trialing`.
+- Solo una suscripción activa tenía `preapproval` de Mercado Pago; su estado
+  local del proveedor era `pending`, por lo que no debe asumirse como una
+  renovación autorizada sin revalidar el preview y el proveedor.
+- No existían lotes, ítems ni eventos de auditoría de cambio de precio. El
+  intento que devolvió `503 MUTATIONS_DISABLED` no modificó el catálogo.
+
+Resultado de los cambios reales del 2026-09-08:
+
+- **Básico:** ARS 30.000 → ARS 20.000, versión 2, lote `partial`. De sus 27
+  ítems, 26 terminaron `skipped` por `missing_preapproval` y 1 terminó `failed`
+  por `provider_not_active`. Este caso requiere reconciliación antes de dar por
+  validada la propagación del plan.
+- **Profesional:** ARS 60.000 → ARS 30.000, versión 2, lote `complete` sin
+  ítems elegibles.
+- **Premium:** ARS 100.000 → ARS 50.000, versión 2, lote `complete`. Terminó
+  con 1 ítem exitoso y 2 `skipped` por `provider_not_supported`.
+- Totales: 3 lotes, 30 ítems y 6 eventos de auditoría. No quedaron ítems
+  `pending` ni checkouts pendientes reutilizables.
+
+El impacto debe recalcularse con `preview` inmediatamente antes de confirmar
+cada cambio. El rollback operativo del permiso es volver a configurar
+`PLATFORM_ADMIN_PRICE_MUTATIONS_ENABLED=false`; esto bloquea nuevas acciones
+`apply`, `process` y `retry`, pero no revierte precios ni efectos externos que ya
+hayan sido confirmados.
 
 ## Propósito y alcance v1
 
@@ -253,7 +290,8 @@ Edge Functions / secrets:
 - `SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `PLATFORM_ADMIN_ALLOWED_ORIGINS`
-- `PLATFORM_ADMIN_PRICE_MUTATIONS_ENABLED` — debe iniciar ausente o `false`
+- `PLATFORM_ADMIN_PRICE_MUTATIONS_ENABLED` — `true` en producción desde el
+  2026-09-08; volver a `false` es el kill switch para bloquear nuevas mutaciones
 - `APP_ORIGIN`
 - `MERCADOPAGO_APP_ORIGIN`
 - `MERCADOPAGO_SUBSCRIPTIONS_ACCESS_TOKEN` — preferido para suscripciones
@@ -273,26 +311,36 @@ helper compartido; `PLATFORM_ADMIN_ALLOWED_ORIGINS` permite declarar la lista
 específica de Admin. Ninguna variable documentada debe contener la contraseña de
 la cuenta en el repositorio o en un nombre `VITE_*`.
 
-## Checklist de despliegue
+## Estado del despliegue en producción
 
-1. Hacer revisión de la migración y aplicarla mediante Lovable, prestando atención
-   explícita al reemplazo de `handle_new_user`.
-2. Verificar constraints, índices, RLS, grants, RPC y backfill en staging.
-3. Crear después de la migración la cuenta técnica en Supabase Auth, confirmarla
-   y asignar su `app_metadata.platform_role` desde un contexto server-side.
-4. Configurar el email técnico en frontend y los secrets/orígenes en Edge
-   Functions. No transportar la contraseña por archivos o variables de build.
-5. Desplegar `platform-admin-query`, `platform-admin-price-change` y las funciones
-   de suscripción modificadas; regenerar los tipos Supabase desde la base migrada.
-6. Validar `/admin` autenticado primero en modo lectura, manteniendo el kill switch
-   de precios apagado.
-7. En Mercado Pago sandbox, completar un cambio de precio de punta a punta:
-   preview, conflicto, lote, renovación activa, checkout pendiente, fallos
-   transitorios, retry y webhook firmado.
-8. Ejecutar QA responsive autenticado en 390, 768/1024 y 1440 px y verificar la
-   convivencia/cierre independiente de sesiones.
-9. Habilitar `PLATFORM_ADMIN_PRICE_MUTATIONS_ENABLED=true` en producción solo con
-   la evidencia anterior aprobada y monitoreo de auditoría activo.
+- [x] Migración aplicada como única migración, en una sola transacción y con
+  autorización explícita para el cambio de `handle_new_user`.
+- [x] Constraints, índices, RLS, grants, RPC, backfill y funciones desplegadas
+  verificados en producción.
+- [x] Cuenta técnica confirmada con
+  `app_metadata.platform_role = "platform_admin"` y sin datos tenant asociados.
+- [x] Email técnico, secrets y origen de Admin configurados sin transportar la
+  contraseña por el repositorio ni variables `VITE_*`.
+- [x] `platform-admin-query`, `platform-admin-price-change` y las funciones de
+  suscripción modificadas desplegadas.
+- [x] Endpoints, CORS y autenticación de `/admin` verificados en producción.
+- [x] Kill switch de precios habilitado el 2026-09-08.
+- [x] Ejecutados tres cambios reales; verificados catálogo, lotes, auditoría y
+  resultados diferenciados de Mercado Pago.
+- [x] Homepage y Registro verificados con ARS 20.000 / 30.000 / 50.000.
+- [ ] Reconciliar el lote parcial de Básico y resolver o clasificar definitivamente
+  su caso `provider_not_active`.
+- [ ] Completar la matriz de renovación activa, checkout pendiente, conflicto,
+  fallos transitorios, retry y webhook firmado.
+- [ ] Verificar los precios y estados en Facturación y `SubscriptionGate`, además
+  del webhook posterior a un cambio aplicable.
+- [ ] Registrar QA responsive autenticado en 390, 768/1024 y 1440 px, incluida
+  la convivencia y el cierre independiente de sesiones.
+
+Si aparece un comportamiento inesperado durante una mutación, configurar
+de inmediato `PLATFORM_ADMIN_PRICE_MUTATIONS_ENABLED=false`, conservar el lote y
+la auditoría para diagnóstico y no intentar una reversión manual del catálogo o
+de Mercado Pago sin reconciliar primero el estado de ambos sistemas.
 
 ## Criterios mínimos de aceptación de rollout
 

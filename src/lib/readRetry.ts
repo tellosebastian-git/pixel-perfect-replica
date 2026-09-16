@@ -177,8 +177,8 @@ async function runOneAttempt<T>(
   try {
     const result = await attempt(controller.signal);
     if (externalSignal.aborted) return { outcome: 'cancelled' };
-    if (!result.error) return { outcome: 'success', data: result.data as T };
     if (timedOut) return { outcome: 'timeout' };
+    if (!result.error) return { outcome: 'success', data: result.data as T };
     return { outcome: 'failed', error: result.error, status: result.status };
   } catch (err) {
     if (externalSignal.aborted) return { outcome: 'cancelled' };
