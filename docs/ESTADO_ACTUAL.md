@@ -1,34 +1,6 @@
 # Estado actual — Vittro
 
-Última actualización: 2026-09-16
 
-## Acceso tenant — implementado localmente, pendiente QA en producción
-
-El cliente tenant conserva `localStorage`, `persistSession` y renovación
-automática de Supabase. La homepage no redirige por sí sola: al entrar a
-`/login`, se espera `INITIAL_SESSION` antes de mostrar el formulario. Si hay
-sesión vigente se navega a `/app/_`; la ruta protegida carga el contexto y
-resuelve el slug. `?mode=signup`, recuperación de contraseña y `/admin` siguen
-separados. El login nuevo espera que el contexto acepte una sesión del mismo
-usuario antes de navegar.
-
-Perfil (con `organization_id` y sucursal predeterminada) y roles se cargan sin
-duplicar la consulta de perfil. Las lecturas de perfil, roles, organización y
-sucursales usan hasta dos reintentos solo ante fallos transitorios, timeout por
-intento y `AbortController`. Los datos de perfil, organización, sucursales y
-suscripción se ocultan al cambiar de usuario u organización; respuestas tardías
-no pueden reponer el tenant anterior. Un fallo de red no se interpreta como
-ausencia de organización. Las pantallas recuperables existentes permiten
-reintentar la fase fallida sin volver a pedir contraseña. La suscripción mantiene
-su lectura actual y retry manual, ahora cancelable y vinculada al tenant vigente.
-
-Validación local: diff revisado, TypeScript, build de producción, lint focal sin
-errores y 25 tests Vitest aprobados (incluyen 15 nuevos de acceso/retry/
-aislamiento). No se desplegó ni se hizo QA con una cuenta real en producción;
-la duración efectiva de sesiones configurada en Supabase producción tampoco
-pudo leerse. No se cambiaron Auth, RLS, base de datos ni APIs públicas del
-servidor. El fallo CORS/REST del gateway puede repetirse, pero la recuperación
-del cliente ya no depende de un error anterior ni exige un segundo login.
 
 ## Centro de administración de plataforma
 
