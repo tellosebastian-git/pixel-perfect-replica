@@ -1,16 +1,10 @@
 import type { Config } from "tailwindcss";
-import { BREAKPOINTS_PX } from "./src/lib/breakpoints";
 
 export default {
   darkMode: ["class"],
   content: ["./pages/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./app/**/*.{ts,tsx}", "./src/**/*.{ts,tsx}"],
   prefix: "",
   theme: {
-    // Fuente única de breakpoints (C7.1, DESIGN.md → Layout): valores
-    // default de Tailwind, centralizados en src/lib/breakpoints.ts para
-    // que CSS y JS los compartan. Reproduce exactamente el comportamiento
-    // implícito anterior — sm/md/lg/xl/2xl siguen significando lo mismo.
-    screens: BREAKPOINTS_PX,
     container: {
       center: true,
       padding: "2rem",

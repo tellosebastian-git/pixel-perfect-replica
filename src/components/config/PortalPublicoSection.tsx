@@ -11,7 +11,6 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from '@/components/ui/form';
 import { EditableSectionHeader } from '@/components/ui/EditableSectionHeader';
-import { SectionNav } from '@/components/ui/SectionNav';
 import { Copy, ExternalLink, Download, Upload, Trash2, Link as LinkIcon, QrCode, Palette, Type, Globe, ChevronDown, Image as ImageIcon, UserRound, BarChart3, Info } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { toast } from 'sonner';
@@ -233,13 +232,11 @@ export function PortalPublicoSection({ onDirtyChange }: PortalPublicoSectionProp
       .filter((l) => l.active && l.label.trim() && URL_RE.test(l.url))
       .sort((a, b) => a.sort_order - b.sort_order)
       .map((l) => ({ label: l.label, url: l.url, icon: l.icon ?? null })),
-    // D47: la preview no lo muestra ni lo usa (BookingLanding no lee este campo
-    // para nada visual — solo Reservar.tsx lo consume, vía useMetaPixel, para
-    // el portal público real). Se agrega únicamente para cumplir el contrato
-    // de tipo PortalDataView con la misma fuente que ya usan el resto de los
-    // campos no ligados a una sección en edición (config, lo último guardado).
-    meta_pixel_id: config?.meta_pixel_id ?? null,
-  }), [logoUrl, coverUrl, watchedCoverPosX, watchedCoverPosY, watchedCoverZoom, organization?.logo_url, previewDescription, previewPrimaryColorRaw, previewLinks, config?.meta_pixel_id]);
+  }), [logoUrl, coverUrl, watchedCoverPosX, watchedCoverPosY, watchedCoverZoom, organization?.logo_url, previewDescription, previewPrimaryColorRaw, previewLinks]);
+
+  const scrollTo = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   const handleCopy = async () => {
     if (!publicUrl) return;
@@ -505,14 +502,39 @@ export function PortalPublicoSection({ onDirtyChange }: PortalPublicoSectionProp
   return (
     <>
       <div className="mx-auto w-full max-w-6xl space-y-6">
-        <SectionNav
-          items={[
-            { id: 'portal-logo-portada', label: 'Logo y portada' },
-            { id: 'portal-nombre-color', label: 'Nombre y color' },
-            { id: 'portal-contenido', label: 'Contenido' },
-            { id: 'portal-integraciones', label: 'Integraciones' },
-          ]}
-        />
+        {/* Barra de accesos — solo desktop */}
+        <nav className="hidden md:block sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border/60 py-2 shadow-sm">
+          <div className="flex items-center gap-1 overflow-x-auto">
+            <button
+              type="button"
+              onClick={() => scrollTo('portal-logo-portada')}
+              className="shrink-0 rounded px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              Logo y portada
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollTo('portal-nombre-color')}
+              className="shrink-0 rounded px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              Nombre y color
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollTo('portal-contenido')}
+              className="shrink-0 rounded px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              Contenido
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollTo('portal-integraciones')}
+              className="shrink-0 rounded px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              Integraciones
+            </button>
+          </div>
+        </nav>
 
         {/* === Bloque superior — Compartir + Vista previa ===
             Sin ningún campo registrado en RHF, solo contenido de solo

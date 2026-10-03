@@ -4,8 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { StatusPill } from '@/components/ui/StatusPill';
-import { RecordRow } from '@/components/ui/RecordRow';
-import { MetricGroup } from '@/components/ui/MetricGroup';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,16 +18,14 @@ import {
 import { GastoRecurrente } from '@/hooks/useGastosRecurrentes';
 import { getRepeatLabel } from '@/components/tareas/RepeatPicker';
 import { getCustomRepeatLabel } from '@/components/tareas/CustomRepeatSheet';
-import { cn } from '@/lib/utils';
 
 interface Props {
   recurrentes: GastoRecurrente[];
-  readOnly?: boolean;
   onToggle: (id: string, activo: boolean) => void;
   onDelete: (id: string) => void;
 }
 
-export function GastosRecurrentesList({ recurrentes, onToggle, onDelete, readOnly = false }: Props) {
+export function GastosRecurrentesList({ recurrentes, onToggle, onDelete }: Props) {
   const [deleteConfirm, setDeleteConfirm] = useState<GastoRecurrente | null>(null);
 
   if (recurrentes.length === 0) return null;
@@ -48,70 +45,64 @@ export function GastosRecurrentesList({ recurrentes, onToggle, onDelete, readOnl
           <CardTitle className="text-lg">Gastos recurrentes</CardTitle>
         </div>
       </CardHeader>
-      <CardContent className="space-y-2">
-        {/* Registro (Tipo A): cada fila es una regla de recurrencia independiente con
-            acciones propias (pausar/eliminar) — no una comparación de columnas
-            (DESIGN.md → Registro vs. Tabla comparativa). */}
-        {recurrentes.map((r) => (
-          <div key={r.id} className={cn('rounded-lg border p-4', !r.activo && 'opacity-50')}>
-            <RecordRow
-              identity={
-                <div className="min-w-0">
-                  <p className="font-medium">{r.categoria}</p>
-                  {r.descripcion && (
-                    <p className="text-xs text-muted-foreground">{r.descripcion}</p>
-                  )}
-                </div>
-              }
-              actions={
-                <>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    disabled={readOnly}
-                    onClick={() => onToggle(r.id, !r.activo)}
-                    title={r.activo ? 'Pausar' : 'Activar'}
-                  >
-                    {r.activo ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive hover:text-destructive"
-                    disabled={readOnly}
-                    aria-label="Eliminar gasto recurrente"
-                    onClick={() => setDeleteConfirm(r)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </>
-              }
-              metrics={
-                <MetricGroup size="metric">
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Categoría</TableHead>
+              <TableHead>Frecuencia</TableHead>
+              <TableHead className="text-right">Monto</TableHead>
+              <TableHead>Próxima fecha</TableHead>
+              <TableHead>Estado</TableHead>
+              <TableHead className="w-20"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {recurrentes.map((r) => (
+              <TableRow key={r.id} className={!r.activo ? 'opacity-50' : ''}>
+                <TableCell>
                   <div>
-                    <p className="text-xs text-muted-foreground">Frecuencia</p>
-                    <Badge variant="outline">{getLabel(r)}</Badge>
+                    <span className="font-medium">{r.categoria}</span>
+                    {r.descripcion && (
+                      <p className="text-xs text-muted-foreground truncate max-w-[200px]">{r.descripcion}</p>
+                    )}
                   </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Monto</p>
-                    <p className="font-medium tabular-nums whitespace-nowrap">
-                      ${r.monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                    </p>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline">{getLabel(r)}</Badge>
+                </TableCell>
+                <TableCell className="text-right font-medium">
+                  ${r.monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                </TableCell>
+                <TableCell className="text-sm">{r.proxima_fecha}</TableCell>
+                <TableCell>
+                  <StatusPill status={r.activo ? 'success' : 'neutral'} label={r.activo ? 'Activo' : 'Pausado'} />
+                </TableCell>
+                <TableCell>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => onToggle(r.id, !r.activo)}
+                      title={r.activo ? 'Pausar' : 'Activar'}
+                    >
+                      {r.activo ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      onClick={() => setDeleteConfirm(r)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Próxima fecha</p>
-                    <p className="text-sm whitespace-nowrap">{r.proxima_fecha}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Estado</p>
-                    <StatusPill status={r.activo ? 'success' : 'neutral'} label={r.activo ? 'Activo' : 'Pausado'} />
-                  </div>
-                </MetricGroup>
-              }
-            />
-          </div>
-        ))}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </CardContent>
 
       <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>

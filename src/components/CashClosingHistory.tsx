@@ -11,8 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StatusPill } from '@/components/ui/StatusPill';
-import { RecordRow } from '@/components/ui/RecordRow';
-import { MetricGroup } from '@/components/ui/MetricGroup';
 import { SkeletonRow } from '@/components/ui/SkeletonRow';
 import { InlineReadError } from '@/components/ui/InlineReadError';
 import { useDelayedVisible } from '@/hooks/useDelayedVisible';
@@ -254,100 +252,95 @@ export function CashClosingHistory({ barbers, externalOpen, onExternalOpenChange
             records.map((record) => (
               <Card key={record.id} className="border border-border">
                 <CardContent className="p-4">
-                  <RecordRow
-                    identity={
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                          <span className="text-sm font-bold text-primary">
-                            {record.barbero?.charAt(0).toUpperCase() || '?'}
-                          </span>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-medium text-foreground">{record.barbero || 'Sin barbero'}</p>
-                          <p className="text-sm text-muted-foreground capitalize">
-                            {record.dia} • {format(new Date(record.created_at), "d 'de' MMMM yyyy", { locale: es })}
-                          </p>
-                          {record.closed_at && record.closed_at !== record.created_at && (
-                            <p className="text-xs text-muted-foreground/70">
-                              Registrado el {format(new Date(record.closed_at), "d 'de' MMMM yyyy 'a las' HH:mm", { locale: es })}
-                            </p>
-                          )}
-                          {record.entry_mode === 'diferido' && record.backfilled_at && (
-                            <p className="text-xs text-primary/70">
-                              Diferido el {format(new Date(record.backfilled_at), "d 'de' MMMM yyyy 'a las' HH:mm", { locale: es })}
-                              {record.backfill_reason && ` • ${record.backfill_reason}`}
-                            </p>
-                          )}
-                        </div>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <span className="text-sm font-bold text-primary">
+                          {record.barbero?.charAt(0).toUpperCase() || '?'}
+                        </span>
                       </div>
-                    }
-                    actions={
-                      <>
-                        {record.entry_mode === 'diferido' && (
-                          <Badge variant="outline" className="text-xs border-primary/30 text-primary">
-                            Diferido
-                          </Badge>
-                        )}
-                        <StatusPill
-                          status={record.estado === 'activo' ? 'success' : 'neutral'}
-                          label={record.estado || 'activo'}
-                        />
-                        {record.estado !== 'eliminado' && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button
-                                className="flex h-7 w-7 items-center justify-center rounded-md bg-transparent hover:bg-muted border-[0.5px] border-border"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <MoreVertical className="h-4 w-4" />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                className="text-destructive focus:text-destructive"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setVoidingClosure({
-                                    id: record.id,
-                                    barberName: record.barbero || 'Sin barbero',
-                                    fechaCierre: format(new Date(record.created_at), 'yyyy-MM-dd'),
-                                  });
-                                }}
-                              >
-                                Anular cierre
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
-                      </>
-                    }
-                    metrics={
-                      <MetricGroup size="metric">
-                        <div>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Banknote className="h-3 w-3" />
-                            Efectivo
+                      <div>
+                        <p className="font-medium text-foreground">{record.barbero || 'Sin barbero'}</p>
+                        <p className="text-sm text-muted-foreground capitalize">
+                          {record.dia} • {format(new Date(record.created_at), "d 'de' MMMM yyyy", { locale: es })}
+                        </p>
+                        {record.closed_at && record.closed_at !== record.created_at && (
+                          <p className="text-xs text-muted-foreground/70">
+                            Registrado el {format(new Date(record.closed_at), "d 'de' MMMM yyyy 'a las' HH:mm", { locale: es })}
                           </p>
-                          <p className="font-semibold text-success tabular-nums whitespace-nowrap">${(record.efectivo || 0).toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <CreditCard className="h-3 w-3" />
-                            Digital
+                        )}
+                        {record.entry_mode === 'diferido' && record.backfilled_at && (
+                          <p className="text-xs text-primary/70">
+                            Diferido el {format(new Date(record.backfilled_at), "d 'de' MMMM yyyy 'a las' HH:mm", { locale: es })}
+                            {record.backfill_reason && ` • ${record.backfill_reason}`}
                           </p>
-                          <p className="font-semibold text-status-info-foreground tabular-nums whitespace-nowrap">${(record.mp || 0).toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Total</p>
-                          <p className="font-semibold text-foreground tabular-nums whitespace-nowrap">${(record.total_facturado || 0).toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Comisión</p>
-                          <p className="font-semibold text-primary tabular-nums whitespace-nowrap">${(record.sueldo || 0).toLocaleString()}</p>
-                        </div>
-                      </MetricGroup>
-                    }
-                  />
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {record.entry_mode === 'diferido' && (
+                        <Badge variant="outline" className="text-xs border-primary/30 text-primary">
+                          Diferido
+                        </Badge>
+                      )}
+                      <StatusPill
+                        status={record.estado === 'activo' ? 'success' : 'neutral'}
+                        label={record.estado || 'activo'}
+                      />
+                      {record.estado !== 'eliminado' && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              className="flex h-7 w-7 items-center justify-center rounded-md bg-transparent hover:bg-muted border-[0.5px] border-border"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setVoidingClosure({
+                                  id: record.id,
+                                  barberName: record.barbero || 'Sin barbero',
+                                  fechaCierre: format(new Date(record.created_at), 'yyyy-MM-dd'),
+                                });
+                              }}
+                            >
+                              Anular cierre
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-4 mt-4 pt-4 border-t border-border">
+                    <div>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Banknote className="h-3 w-3" />
+                        Efectivo
+                      </p>
+                      <p className="font-semibold text-success">${(record.efectivo || 0).toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <CreditCard className="h-3 w-3" />
+                        Digital
+                      </p>
+                      <p className="font-semibold text-status-info-foreground">${(record.mp || 0).toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total</p>
+                      <p className="font-semibold text-foreground">${(record.total_facturado || 0).toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Comisión</p>
+                      <p className="font-semibold text-primary">${(record.sueldo || 0).toLocaleString()}</p>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             ))

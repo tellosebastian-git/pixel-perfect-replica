@@ -199,7 +199,7 @@ export const DatosClienteStep = ({ organizationId, initial, onSubmit }: Props) =
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-muted-foreground">Encontramos tu cuenta</p>
-                <p className="text-sm font-medium text-foreground break-words">
+                <p className="text-sm font-medium text-foreground truncate">
                   {[matched.nombre, matched.apellido].filter(Boolean).join(" ")}
                 </p>
               </div>

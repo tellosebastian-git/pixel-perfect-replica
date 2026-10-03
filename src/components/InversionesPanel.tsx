@@ -1,5 +1,3 @@
-import { runFinanceWrite } from '@/lib/financeDemoRuntime';
-import { useFinanceDemo } from '@/contexts/FinanceDemoContext';
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -77,7 +75,6 @@ const getInversionFormDefaults = (): InversionFormValues => ({
 });
 
 export function InversionesPanel() {
-  const demo = useFinanceDemo();
   const { inversiones, isLoading, addInversion, deleteInversion, getAmortizacionMensual, getMesesTranscurridos } = useInversiones();
   const showSkeleton = useDelayedVisible(isLoading);
   const { addDeuda } = useDeudas();
@@ -138,7 +135,7 @@ export function InversionesPanel() {
         subtitle="Bienes y equipamiento del negocio."
         className="pl-0"
         actions={(
-          <Button size="sm" disabled={demo.active} onClick={() => setIsFormOpen(true)}>
+          <Button size="sm" onClick={() => setIsFormOpen(true)}>
             <Plus className="h-4 w-4 mr-1" /> Nueva
           </Button>
         )}
@@ -152,17 +149,17 @@ export function InversionesPanel() {
         isDirty={form.formState.isDirty}
         footer={
           <div className="flex w-full justify-end gap-2">
-            <Button variant="outline" onClick={() => setIsFormOpen(false)} disabled={demo.active || form.formState.isSubmitting}>
+            <Button variant="outline" onClick={() => setIsFormOpen(false)} disabled={form.formState.isSubmitting}>
               Cancelar
             </Button>
-            <Button type="submit" form="inversion-form" disabled={demo.active || form.formState.isSubmitting}>
+            <Button type="submit" form="inversion-form" disabled={form.formState.isSubmitting}>
               {form.formState.isSubmitting ? 'Guardando...' : 'Guardar'}
             </Button>
           </div>
         }
       >
         <Form {...form}>
-          <form id="inversion-form" onSubmit={form.handleSubmit(values => runFinanceWrite(() => onSubmit(values)).then(() => {}))} className="space-y-4">
+          <form id="inversion-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -374,8 +371,6 @@ export function InversionesPanel() {
                       variant="ghost"
                       size="icon"
                       className="text-destructive h-8 w-8"
-                      disabled={demo.active}
-                      aria-label="Eliminar inversión"
                       onClick={() => setInversionAEliminar(inv)}
                     >
                       <Trash2 className="h-4 w-4" />

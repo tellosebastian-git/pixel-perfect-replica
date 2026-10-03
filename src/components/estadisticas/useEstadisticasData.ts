@@ -1,5 +1,3 @@
-import { useFinanceDemo } from '@/contexts/FinanceDemoContext';
-import type { OperationalReadOptions } from '@/hooks/useOperationalAccess';
 import { useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, subMonths, startOfMonth, endOfMonth, parseISO } from 'date-fns';
@@ -71,15 +69,11 @@ export function useEstadisticasData(
   organizationId: string | undefined,
   currentSucursal: Sucursal | null,
   periodoMeses: string,
-  options: OperationalReadOptions = {},
 ) {
-  const demo = useFinanceDemo();
-  const enabled = options.enabled !== false && !demo.active;
   const contextKey = `${organizationId ?? 'none'}::${currentSucursal?.id ?? 'all'}::${periodoMeses}`;
 
   const readState = useReadState<EstadisticasBundle>({
     contextKey,
-    enabled,
     errorMessage: 'No pudimos cargar la facturación y los gastos.',
     staleErrorMessage: 'No pudimos actualizar la facturación y los gastos.',
     surfaceId: `estadisticas-general:${organizationId ?? 'none'}`,
@@ -185,8 +179,6 @@ export function useEstadisticasData(
   }, [organizationId, fetchAll]);
 
   const bundle = readState.data ?? EMPTY_BUNDLE;
-
-  if (demo.active) return { monthlyData: demo.data.monthlyData.slice(-parseInt(periodoMeses)), ingresosRaw: demo.data.ingresosRaw.filter(row => row.created_at.slice(0, 7) >= (demo.data.monthlyData.slice(-parseInt(periodoMeses))[0]?.month ?? '')), datosIncompletos: false, isLoading: false, phase: 'ready' as ReadPhase, error: null, retry: () => {} };
 
   return {
     monthlyData: bundle.monthlyData,

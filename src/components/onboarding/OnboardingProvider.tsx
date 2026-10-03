@@ -1,9 +1,8 @@
-import { useFinanceDemo } from '@/contexts/FinanceDemoContext';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
 import { ONBOARDING_STEPS, OnboardingStep, OnboardingSubTab, OnboardingEvent } from './steps';
 import { useOnboardingState } from '@/hooks/useOnboardingState';
 import { useAuth } from '@/contexts/AuthContext';
-import { useWindowMode } from '@/hooks/use-window-mode';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 /** Tiempo máximo de espera a que el target de un paso aparezca en el DOM. */
 const TARGET_TIMEOUT_MS = 1500;
@@ -41,20 +40,13 @@ export function useOnboarding() {
 }
 
 export function OnboardingProvider({ children }: { children: ReactNode }) {
-  const demo = useFinanceDemo();
   const { row, isLoading, upsert } = useOnboardingState();
   const { isOwner, isGeneralManager } = useAuth();
-  // El filtro de pasos es una API que CSS no puede expresar (decide qué
-  // entra en `steps`, un array de JS) — lee el modo de ventana compartido
-  // (DESIGN.md → Layout) en vez de un breakpoint local. "Mobile" pasa a
-  // significar Compact; Medium se agrupa con Expanded porque ambos tienen
-  // navegación persistente (a diferencia de Compact, que la tiene en un
-  // drawer).
-  const isCompact = useWindowMode() === 'compact';
+  const isMobile = useIsMobile();
   const canSeeOnboarding = isOwner || isGeneralManager;
   const steps = useMemo(
-    () => ONBOARDING_STEPS.filter(s => (isCompact ? !s.hideOnMobile : !s.hideOnDesktop)),
-    [isCompact]
+    () => ONBOARDING_STEPS.filter(s => (isMobile ? !s.hideOnMobile : !s.hideOnDesktop)),
+    [isMobile]
   );
   const tabSetterRef = useRef<((tab: string) => void) | null>(null);
   const subTabSetterRef = useRef<((kind: OnboardingSubTab) => void) | null>(null);
@@ -67,7 +59,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const [tooltipFits, setTooltipFits] = useState(true);
 
 
-  const isActive = !demo.active && currentIndex >= 0 && currentIndex < steps.length;
+  const isActive = currentIndex >= 0 && currentIndex < steps.length;
   const currentStep = isActive ? steps[currentIndex] : null;
 
   const next = useCallback(() => {

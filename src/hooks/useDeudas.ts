@@ -1,6 +1,3 @@
-import { useFinanceDemo } from '@/contexts/FinanceDemoContext';
-import { useOperationalAccess, type OperationalReadOptions } from '@/hooks/useOperationalAccess';
-import { runFinanceWrite } from '@/lib/financeDemoRuntime';
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/contexts/OrganizationContext';
@@ -34,18 +31,14 @@ export interface PagoDeuda {
   created_at: string;
 }
 
-export function useDeudas(options: OperationalReadOptions = {}) {
-  const demo = useFinanceDemo();
-  const enabled = options.enabled !== false && !demo.active;
-  const access = useOperationalAccess(enabled);
+export function useDeudas() {
   const { organization } = useOrganization();
   const { currentSucursal } = useSucursal();
   const [deudas, setDeudas] = useState<Deuda[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const fetchDeudas = useCallback(async () => {
-    if (!organization?.id || !enabled || !access.allowed()) return;
-    const request = access.start();
+    if (!organization?.id) return;
     setIsLoading(true);
     try {
       let query = supabase
@@ -58,20 +51,17 @@ export function useDeudas(options: OperationalReadOptions = {}) {
         query = query.eq('sucursal_id', currentSucursal.id);
       }
 
-      const { data, error } = await query.abortSignal(request.signal);
-      if (!request.current()) return;
+      const { data, error } = await query;
 
       if (error) throw error;
       setDeudas((data as Deuda[]) || []);
     } catch (error: any) {
-      if (!request.current()) return;
       console.error('Error fetching deudas:', error);
       toast.error('Error al cargar deudas');
     } finally {
-      if (request.current()) setIsLoading(false);
-      request.finish();
+      setIsLoading(false);
     }
-  }, [enabled, access, organization?.id, currentSucursal]);
+  }, [organization?.id, currentSucursal]);
 
   useEffect(() => {
     fetchDeudas();
@@ -87,7 +77,6 @@ export function useDeudas(options: OperationalReadOptions = {}) {
     descripcion?: string;
     inversion_id?: string;
   }) => {
-    if (!access.allowed()) return;
     if (!organization?.id) {
       toast.error('No se encontró la organización');
       return false;
@@ -126,7 +115,6 @@ export function useDeudas(options: OperationalReadOptions = {}) {
     fechaPago: string,
     observacion?: string,
   ) => {
-    if (!access.allowed()) return;
     try {
       const saldoPendiente = Number(deuda.monto_total) - Number(deuda.monto_pagado);
       if (!isFinite(montoPagado) || montoPagado <= 0) {
@@ -227,7 +215,6 @@ export function useDeudas(options: OperationalReadOptions = {}) {
   };
 
   const deleteDeuda = async (id: string) => {
-    if (!access.allowed()) return;
     try {
       const { error } = await supabase.from('deudas').delete().eq('id', id);
       if (error) throw error;
@@ -241,36 +228,32 @@ export function useDeudas(options: OperationalReadOptions = {}) {
 
   const fetchPagosDeuda = useCallback(
     async (deudaId: string): Promise<PagoDeuda[]> => {
-      if (!organization?.id || !access.allowed()) return [];
-      const request = access.start();
+      if (!organization?.id) return [];
       try {
         const { data, error } = await supabase
           .from('pagos_deudas')
           .select('id, deuda_id, monto, fecha_pago, numero_cuota, observacion, created_at')
           .eq('organization_id', organization.id)
           .eq('deuda_id', deudaId)
-          .order('fecha_pago', { ascending: true }).abortSignal(request.signal);
-        if (!request.current()) return [];
+          .order('fecha_pago', { ascending: true });
         if (error) throw error;
         return (data as PagoDeuda[]) || [];
       } catch (error: any) {
-        if (!request.current()) return [];
         console.error('Error fetching pagos de deuda:', error);
         toast.error('Error al cargar el historial de pagos');
         return [];
-      } finally { request.finish(); }
+      }
     },
-    [organization?.id, access],
+    [organization?.id],
   );
 
   return {
     deudas,
     isLoading,
-    addDeuda: (...args: Parameters<typeof addDeuda>) => runFinanceWrite(() => addDeuda(...args)),
-    registrarPago: (...args: Parameters<typeof registrarPago>) => runFinanceWrite(() => registrarPago(...args)),
-    deleteDeuda: (...args: Parameters<typeof deleteDeuda>) => runFinanceWrite(() => deleteDeuda(...args)),
+    addDeuda,
+    registrarPago,
+    deleteDeuda,
     fetchPagosDeuda,
     refetch: fetchDeudas,
-    ...(demo.active ? { deudas: demo.data.deudas, isLoading: false, fetchPagosDeuda: async (deudaId: string) => demo.data.debtPayments.filter(row => row.deuda_id === deudaId) } : {}),
   };
 }

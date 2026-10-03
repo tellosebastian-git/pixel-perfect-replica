@@ -8,8 +8,6 @@ import {
 import logoVittro from '../assets/MagotipoBlanco.png';
 import { CookieConsentBanner } from '@/components/consent/CookieConsentBanner';
 import { useMetaPixel } from '@/hooks/useMetaPixel';
-import { formatSubscriptionPrice, useSubscriptionPlans } from '@/hooks/useSubscriptionPlans';
-import type { BillingPlanCode } from '@/hooks/useSubscriptionAccess';
 // ─── Scroll reveal hook ───────────────────────────────────────────────────────
 function useReveal() {
   const ref = useRef<HTMLDivElement>(null);
@@ -244,58 +242,6 @@ const features: { key: ScreenKey; icon: React.ReactNode; title: string; desc: st
   },
 ];
 
-const HOMEPAGE_PLANS: Array<{
-  code: BillingPlanCode;
-  tier: string;
-  sub: string;
-  features: string[];
-  featured: boolean;
-  cta: string;
-}> = [
-  {
-    code: 'basico',
-    tier: 'Básico',
-    sub: 'por mes · para empezar a ordenar',
-    features: [
-      '1 sucursal',
-      'Hasta 2 barberos',
-      'Agenda de turnos online',
-      'Registro de cobros',
-      'Cierre de caja diario',
-    ],
-    featured: false,
-    cta: 'Registrar mi barbería',
-  },
-  {
-    code: 'profesional',
-    tier: 'Profesional',
-    sub: 'por mes · para crecer con más control',
-    features: [
-      '1 sucursal',
-      'Más barberos y servicios',
-      'Control completo de finanzas',
-      'Estadísticas avanzadas',
-      'Historial de cobros y servicios',
-    ],
-    featured: true,
-    cta: 'Registrar mi barbería',
-  },
-  {
-    code: 'premium',
-    tier: 'Premium',
-    sub: 'por mes · para múltiples sucursales',
-    features: [
-      'Múltiples sucursales',
-      'Barberos ilimitados',
-      'Encargados por sede',
-      'Reportes avanzados',
-      'Soporte prioritario',
-    ],
-    featured: false,
-    cta: 'Registrar mi barbería',
-  },
-];
-
 // ─── App sidebar ──────────────────────────────────────────────────────────────
 const navItems = [
   { key: 'cobrar', label: 'Cobrar', icon: <Scissors size={10} /> },
@@ -375,7 +321,6 @@ function AppWindow({ activeScreen }: { activeScreen: ScreenKey }) {
 export default function Homepage() {
   const [heroTab, setHeroTab] = useState<ScreenKey>('caja');
   const [featTab, setFeatTab] = useState<ScreenKey>('caja');
-  const { data: subscriptionPlans = [], isLoading: plansLoading } = useSubscriptionPlans();
 
   useMetaPixel(import.meta.env.VITE_META_PIXEL_ID);
 
@@ -663,7 +608,50 @@ export default function Homepage() {
           </Reveal>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {HOMEPAGE_PLANS.map((plan, i) => (
+            {[
+              {
+                tier: 'Básico',
+                price: '$30.000',
+                sub: 'por mes · para empezar a ordenar',
+                features: [
+                  '1 sucursal',
+                  'Hasta 2 barberos',
+                  'Agenda de turnos online',
+                  'Registro de cobros',
+                  'Cierre de caja diario',
+                ],
+                featured: false,
+                cta: 'Registrar mi barbería',
+              },
+              {
+                tier: 'Profesional',
+                price: '$50.000',
+                sub: 'por mes · para crecer con más control',
+                features: [
+                  '1 sucursal',
+                  'Más barberos y servicios',
+                  'Control completo de finanzas',
+                  'Estadísticas avanzadas',
+                  'Historial de cobros y servicios',
+                ],
+                featured: true,
+                cta: 'Registrar mi barbería',
+              },
+              {
+                tier: 'Premium',
+                price: '$100.000',
+                sub: 'por mes · para múltiples sucursales',
+                features: [
+                  'Múltiples sucursales',
+                  'Barberos ilimitados',
+                  'Encargados por sede',
+                  'Reportes avanzados',
+                  'Soporte prioritario',
+                ],
+                featured: false,
+                cta: 'Registrar mi barbería',
+              },
+            ].map((plan, i) => (
               <Reveal key={plan.tier} delay={i * 80}>
                 <div className={`relative bg-white rounded-xl p-5 flex flex-col h-full transition-shadow hover:shadow-md ${plan.featured ? 'border-2 border-primary shadow-sm' : 'border border-slate-200'}`}>
                   {plan.featured && (
@@ -673,13 +661,7 @@ export default function Homepage() {
                   )}
                   <div className="mb-4">
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">{plan.tier}</p>
-                    <p className="text-2xl font-semibold tracking-tight" aria-busy={plansLoading}>
-                      {(() => {
-                        const catalogPlan = subscriptionPlans.find((item) => item.code === plan.code);
-                        if (catalogPlan) return formatSubscriptionPrice(catalogPlan.amount_ars);
-                        return plansLoading ? 'Cargando…' : 'Consultar';
-                      })()}
-                    </p>
+                    <p className="text-2xl font-semibold tracking-tight">{plan.price}</p>
                     <p className="text-xs text-slate-400 mt-0.5 leading-tight">{plan.sub}</p>
                   </div>
                   <div className="h-px bg-slate-100 mb-4" />

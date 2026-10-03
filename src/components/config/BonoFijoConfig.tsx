@@ -263,9 +263,9 @@ export function BonoFijoConfig({ barberId, organizationId, sucursalId, forceShow
           </div>
 
           <div className="text-sm space-y-1">
-            <div className="flex justify-between gap-2">
+            <div className="flex justify-between">
               <span className="text-muted-foreground">Monto</span>
-              <span className="font-medium tabular-nums whitespace-nowrap">{formatCurrency(config.monto)}</span>
+              <span className="font-medium">{formatCurrency(config.monto)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Recurrencia</span>

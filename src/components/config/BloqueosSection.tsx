@@ -257,12 +257,12 @@ export function BloqueosSection({ sucursalId, organizationId, barbers }: Bloqueo
       >
         <Form {...form}>
           <div className="space-y-3">
-            <div className="flex flex-wrap gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <FormField
                 control={form.control}
                 name="fecha_inicio"
                 render={({ field }) => (
-                  <FormItem className="min-w-[140px] flex-1">
+                  <FormItem>
                     <FormLabel className="text-xs">Fecha inicio</FormLabel>
                     <FormControl>
                       <DatePicker value={field.value || null} onChange={(v) => field.onChange(v ?? '')} />
@@ -275,7 +275,7 @@ export function BloqueosSection({ sucursalId, organizationId, barbers }: Bloqueo
                 control={form.control}
                 name="fecha_fin"
                 render={({ field }) => (
-                  <FormItem className="min-w-[140px] flex-1">
+                  <FormItem>
                     <FormLabel className="text-xs">Fecha fin</FormLabel>
                     <FormControl>
                       <DatePicker value={field.value || null} onChange={(v) => field.onChange(v ?? '')} />
@@ -300,12 +300,12 @@ export function BloqueosSection({ sucursalId, organizationId, barbers }: Bloqueo
             />
 
             {!todoElDiaValue && (
-              <div className="flex flex-wrap gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <FormField
                   control={form.control}
                   name="hora_inicio"
                   render={({ field }) => (
-                    <FormItem className="min-w-[140px] flex-1">
+                    <FormItem>
                       <FormLabel className="text-xs">Hora inicio</FormLabel>
                       <FormControl>
                         <TimePicker value={field.value} onChange={field.onChange} />
@@ -317,7 +317,7 @@ export function BloqueosSection({ sucursalId, organizationId, barbers }: Bloqueo
                   control={form.control}
                   name="hora_fin"
                   render={({ field }) => (
-                    <FormItem className="min-w-[140px] flex-1">
+                    <FormItem>
                       <FormLabel className="text-xs">Hora fin</FormLabel>
                       <FormControl>
                         <TimePicker value={field.value} onChange={field.onChange} />

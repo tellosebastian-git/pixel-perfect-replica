@@ -1,5 +1,3 @@
-import { useFinanceDemo } from '@/contexts/FinanceDemoContext';
-import type { OperationalReadOptions } from '@/hooks/useOperationalAccess';
 import { useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/contexts/OrganizationContext';
@@ -61,9 +59,7 @@ function rowToBarber(row: any): Barber {
   };
 }
 
-export function useCobrarBarbers(options: OperationalReadOptions = {}) {
-  const demo = useFinanceDemo();
-  const enabled = options.enabled !== false && !demo.active;
+export function useCobrarBarbers() {
   const { organization } = useOrganization();
   const { currentSucursal } = useSucursal();
 
@@ -73,7 +69,6 @@ export function useCobrarBarbers(options: OperationalReadOptions = {}) {
 
   const readState = useReadState<Barber[]>({
     contextKey,
-    enabled,
     errorMessage: 'No pudimos cargar el equipo.',
     staleErrorMessage: 'No pudimos actualizar el equipo.',
     surfaceId: `cobrar-barbers:${orgId ?? 'none'}`,
@@ -123,7 +118,7 @@ export function useCobrarBarbers(options: OperationalReadOptions = {}) {
   }, [fetchBarbers]);
 
   useBarberosSucursalesRealtime({
-    orgId: enabled ? orgId : null,
+    orgId,
     sucursalId,
     onChange: () => { fetchBarbers(); },
   });

@@ -57,22 +57,21 @@ export function MetricDetailDialog({
           </ComposedChart>
         </ChartContainer>
 
-        {/* Detail table — Tabla comparativa (Tipo B): compara el mismo valor entre meses,
-            sin acción propia por fila (DESIGN.md → Registro vs. Tabla comparativa). */}
+        {/* Detail table */}
         <div className="rounded-md border overflow-hidden">
-          <Table comparative className={metric.origenKeys ? 'min-w-[720px]' : 'min-w-[480px]'}>
+          <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="min-w-[100px]">Mes</TableHead>
-                <TableHead className="text-right min-w-[110px]">Valor</TableHead>
+                <TableHead>Mes</TableHead>
+                <TableHead className="text-right">Valor</TableHead>
                 {metric.origenKeys && (
                   <>
-                    <TableHead className="text-right min-w-[90px]">Manual</TableHead>
-                    <TableHead className="text-right min-w-[100px]">Importado</TableHead>
-                    <TableHead className="text-right min-w-[90px]">Reserva</TableHead>
+                    <TableHead className="text-right">Manual</TableHead>
+                    <TableHead className="text-right">Importado</TableHead>
+                    <TableHead className="text-right">Reserva</TableHead>
                   </>
                 )}
-                <TableHead className="text-right min-w-[90px]">Variación</TableHead>
+                <TableHead className="text-right">Variación</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -81,16 +80,16 @@ export function MetricDetailDialog({
                 const variation = vKey ? (row[vKey] as number | null) : null;
                 return (
                   <TableRow key={row.monthLabel}>
-                    <TableCell className="font-medium whitespace-nowrap">{row.monthLabel}</TableCell>
-                    <TableCell className="text-right tabular-nums whitespace-nowrap">{metric.formatFn(value)}</TableCell>
+                    <TableCell className="font-medium">{row.monthLabel}</TableCell>
+                    <TableCell className="text-right">{metric.formatFn(value)}</TableCell>
                     {metric.origenKeys && (
                       <>
-                        <TableCell className="text-right tabular-nums whitespace-nowrap text-muted-foreground">{row[metric.origenKeys.manual] as number}</TableCell>
-                        <TableCell className="text-right tabular-nums whitespace-nowrap text-muted-foreground">{row[metric.origenKeys.importado] as number}</TableCell>
-                        <TableCell className="text-right tabular-nums whitespace-nowrap text-muted-foreground">{row[metric.origenKeys.reserva] as number}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">{row[metric.origenKeys.manual] as number}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">{row[metric.origenKeys.importado] as number}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">{row[metric.origenKeys.reserva] as number}</TableCell>
                       </>
                     )}
-                    <TableCell className="text-right tabular-nums whitespace-nowrap">
+                    <TableCell className="text-right">
                       {variation == null ? (
                         <span className="text-muted-foreground">—</span>
                       ) : (

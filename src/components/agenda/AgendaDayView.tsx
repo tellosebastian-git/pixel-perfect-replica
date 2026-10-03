@@ -4,7 +4,6 @@ import { Barber } from '@/types/barbershop';
 import { Turno, Bloqueo, Servicio, Horario } from './hooks/useAgendaData';
 import { useBarberColors } from './hooks/useBarberColors';
 import { usePointerDragDrop, usePointerTap } from './hooks/usePointerDragDrop';
-import { useAgendaBodyHeight } from './hooks/useAgendaBodyHeight';
 import { timeToMinutes, minutesToTime, formatHHMM, ZOOM_PX_PER_MIN, pickAutoZoomLevel, type ZoomLevel } from './lib/timeUtils';
 import { cn } from '@/lib/utils';
 
@@ -77,7 +76,6 @@ export function AgendaDayView({
   const isProgrammaticScrollRef = useRef(false);
   const manualScrollBaseContextRef = useRef<string | null>(null);
   const outerRef = useRef<HTMLDivElement | null>(null);
-  const headerRowRef = useRef<HTMLDivElement | null>(null);
   const headerScrollRef = useRef<HTMLDivElement | null>(null);
   const bodyColumnsScrollRef = useRef<HTMLDivElement | null>(null);
   const isSyncingScrollRef = useRef(false);
@@ -276,8 +274,6 @@ export function AgendaDayView({
   const MIN_COL_WIDTH = 160;
   const TIME_RAIL_WIDTH = 56;
 
-  const bodyMaxHeight = useAgendaBodyHeight(outerRef, headerRowRef);
-
   useEffect(() => {
     const el = outerRef.current;
     if (!el) return;
@@ -450,7 +446,7 @@ export function AgendaDayView({
   return (
     <div ref={outerRef} className="bg-card overflow-clip">
       {/* Header */}
-      <div ref={headerRowRef} className="flex border-b bg-muted/30 sticky top-0 z-20">
+      <div className="flex border-b bg-muted/30 sticky top-0 z-20">
         <div className="shrink-0 border-r" style={{ width: TIME_RAIL_WIDTH }} />
         <div ref={headerScrollRef} className="flex overflow-x-auto scrollbar-hide" onScroll={handleHeaderScroll}>
           {activeBarbers.map((b) => (
@@ -473,7 +469,7 @@ export function AgendaDayView({
         ref={gridScrollRef}
         onScroll={handleGridScroll}
         className="overflow-y-auto overscroll-contain"
-        style={{ maxHeight: bodyMaxHeight }}
+        style={{ maxHeight: 'clamp(600px, calc(100vh - 180px), 1100px)' }}
       >
         <div className="flex relative" style={{ height: totalHeight }}>
           {/* Time rail */}

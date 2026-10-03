@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { useOnboarding } from './onboarding/OnboardingProvider';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
-import { SectionNav } from '@/components/ui/SectionNav';
 import { Loader2, ChevronDown, Info } from 'lucide-react';
 import { Service, Extra, Discount, Line, Barber } from '@/types/barbershop';
 import { ServicesConfig } from './config/ServicesConfig';
@@ -99,6 +98,10 @@ export function MiNegocioGeneralTabContent({
     };
   }, [isReady]);
 
+  const scrollTo = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   return (
     <div className="mt-4 space-y-6 sm:mt-6">
       <div className="flex items-start gap-3 rounded-lg border border-secondary bg-secondary px-4 py-3 text-sm text-primary shadow-sm">
@@ -113,16 +116,29 @@ export function MiNegocioGeneralTabContent({
         <span>Cargando configuración…</span>
       </div>
 
-      <SectionNav
-        items={[
-          { id: 'seccion-cuentas', label: 'Cuentas de sucursal', onBeforeScroll: () => setCuentasOpen(true) },
-          { id: 'seccion-equipo', label: 'Equipo' },
-          { id: 'seccion-servicios', label: 'Servicios' },
-          { id: 'seccion-productos', label: 'Productos' },
-          { id: 'seccion-descuentos', label: 'Descuentos' },
-          { id: 'seccion-metodos-pago', label: 'Métodos de pago' },
-        ]}
-      />
+      {/* Anchor nav — solo desktop */}
+      <nav className="hidden md:block sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border/60 py-2 shadow-sm">
+        <div className="flex items-center gap-1 overflow-x-auto">
+          <button onClick={() => { setCuentasOpen(true); scrollTo('seccion-cuentas'); }} className="shrink-0 rounded px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+            Cuentas de sucursal
+          </button>
+          <button onClick={() => scrollTo('seccion-equipo')} className="shrink-0 rounded px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+            Equipo
+          </button>
+          <button onClick={() => scrollTo('seccion-servicios')} className="shrink-0 rounded px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+            Servicios
+          </button>
+          <button onClick={() => scrollTo('seccion-productos')} className="shrink-0 rounded px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+            Productos
+          </button>
+          <button onClick={() => scrollTo('seccion-descuentos')} className="shrink-0 rounded px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+            Descuentos
+          </button>
+          <button onClick={() => scrollTo('seccion-metodos-pago')} className="shrink-0 rounded px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+            Métodos de pago
+          </button>
+        </div>
+      </nav>
 
       <div className={!isReady ? 'opacity-80 pointer-events-none select-none' : ''} aria-disabled={!isReady || undefined}>
         {/* Cuentas de sucursal — colapsado por defecto */}

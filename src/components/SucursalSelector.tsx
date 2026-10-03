@@ -1,5 +1,3 @@
-import { useFinanceDemo } from '@/contexts/FinanceDemoContext';
-import { DEMO_BRANCHES } from '@/lib/financeDemoData';
 import { Building2, MapPin } from 'lucide-react';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
@@ -11,12 +9,7 @@ interface SucursalSelectorProps {
 }
 
 export function SucursalSelector({ collapsed = false }: SucursalSelectorProps) {
-  const live = useSucursal();
-  const demo = useFinanceDemo();
-  const sucursales = demo.active ? DEMO_BRANCHES : live.sucursales;
-  const currentSucursal = demo.active ? DEMO_BRANCHES.find(row => row.id === demo.branch) ?? null : live.currentSucursal;
-  const setCurrentSucursal = demo.active ? demo.setBranch : live.setCurrentSucursal;
-  const isAllMode = demo.active ? demo.branch === null : live.isAllMode;
+  const { sucursales, currentSucursal, setCurrentSucursal, isAllMode } = useSucursal();
   const { isOwner, isGeneralManager, isManager } = useAuth();
 
   const canSwitch = isOwner || isGeneralManager;

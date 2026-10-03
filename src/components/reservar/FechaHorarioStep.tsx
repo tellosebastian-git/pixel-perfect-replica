@@ -306,15 +306,11 @@ export const FechaHorarioStep = ({
         </Button>
       </div>
 
-      {/* Short ribbon — max 5 days. Ancho fluido (flex-1, sin shrink-0/w-12 fijo):
-          5 botones de ancho fijo + gap podían superar el contenedor real en
-          mobile angosto (sin overflow-x-auto ni wrap, eso se propagaba como
-          scroll horizontal de página) — mismo día, misma cantidad, solo dejan
-          de pedir más ancho del que hay. */}
+      {/* Short ribbon — max 5 days */}
       <div className="flex gap-2">
         {loadingStrip
           ? [...Array(5)].map((_, i) => (
-              <Skeleton key={i} className="h-16 flex-1 min-w-0 rounded-xl" />
+              <Skeleton key={i} className="shrink-0 w-12 h-16 rounded-xl" />
             ))
           : stripDays.map((d) => {
               const active = d.dateStr === fecha;
@@ -323,7 +319,7 @@ export const FechaHorarioStep = ({
                   key={d.dateStr}
                   onClick={() => setFecha(d.dateStr)}
                   className={cn(
-                    "flex h-16 flex-1 min-w-0 flex-col items-center justify-center rounded-xl text-sm font-medium transition-colors",
+                    "flex flex-col items-center justify-center shrink-0 w-12 h-16 rounded-xl text-sm font-medium transition-colors",
                     active
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "bg-muted/50 text-foreground hover:bg-accent"

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { useOnboarding } from './OnboardingProvider';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { useWindowMode } from '@/hooks/use-window-mode';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { ArrowRight, Sparkles, X } from 'lucide-react';
 
 const TOOLTIP_W = 340;
@@ -16,10 +16,7 @@ type Placement = 'bottom' | 'top' | 'right' | 'left' | 'center';
 
 export function OnboardingTooltip() {
   const { isActive, currentStep, currentIndex, totalSteps, targetRect, targetMissing, next, skip, setTooltipFits } = useOnboarding();
-  // Fork estructural (bottom sheet vs. tooltip posicionado) que depende de
-  // cálculos de JS (targetRect, vp) imposibles de expresar en CSS — lee el
-  // modo de ventana compartido (DESIGN.md → Layout) en vez de 768px local.
-  const isMobile = useWindowMode() === 'compact';
+  const isMobile = useIsMobile();
   const cardRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState<{ w: number; h: number }>({ w: TOOLTIP_W, h: FALLBACK_H });
   const [vp, setVp] = useState({

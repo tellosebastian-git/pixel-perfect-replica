@@ -4,9 +4,8 @@ import { Barber } from '@/types/barbershop';
 import { Turno, Bloqueo, Servicio } from './hooks/useAgendaData';
 import { useBarberColors } from './hooks/useBarberColors';
 import { cn } from '@/lib/utils';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import { MULTI_PX_PER_MIN, MULTI_RANGE_START, MULTI_RANGE_END } from './lib/multiDayLayout';
-import { useAgendaBodyHeight } from './hooks/useAgendaBodyHeight';
 import { AgendaMultiDayColumn } from './AgendaMultiDayColumn';
 
 interface Props {
@@ -20,14 +19,6 @@ interface Props {
   onDayHeaderClick?: (d: Date) => void;
 }
 
-// Mismo contrato que AgendaDayView (columna con ancho mínimo usable + scroll
-// horizontal local cuando no entra), medido empíricamente para esta vista con
-// el componente real de tarjeta de turno — ver docs/DECISIONES.md. 128px es
-// donde un nombre realista de barbero ("Francisco Rodríguez", 20 caracteres)
-// deja de truncarse en `AgendaMultiDayTurnoCard`; a 96/112px ya se corta.
-const MIN_COL_WIDTH = 128;
-const TIME_RAIL_WIDTH = 56;
-
 export function AgendaMultiDayView({
   startDate, daysCount, barbers, turnos, bloqueos, servicios, onTurnoClick, onDayHeaderClick,
 }: Props) {
@@ -39,6 +30,7 @@ export function AgendaMultiDayView({
   }), [startDate, daysCount]);
 
   const totalHeight = (MULTI_RANGE_END - MULTI_RANGE_START) * MULTI_PX_PER_MIN;
+  const TIME_RAIL_WIDTH = 56;
   const today = new Date();
 
   const hourRails = useMemo(() => {
@@ -55,64 +47,15 @@ export function AgendaMultiDayView({
     return rails;
   }, []);
 
-  // Ancho de columna: mismo patrón de AgendaDayView (medir el contenedor real
-  // vía ResizeObserver, nunca un breakpoint) — la columna crece si sobra
-  // espacio, nunca baja de MIN_COL_WIDTH; si el conjunto no entra, scroll
-  // horizontal local (abajo) en vez de comprimir.
-  const outerRef = useRef<HTMLDivElement | null>(null);
-  const [containerWidth, setContainerWidth] = useState(0);
-
-  useEffect(() => {
-    const el = outerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([entry]) => setContainerWidth(entry.contentRect.width));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  const colWidth = useMemo(() => {
-    if (daysCount === 0 || containerWidth === 0) return MIN_COL_WIDTH;
-    return Math.max(MIN_COL_WIDTH, (containerWidth - TIME_RAIL_WIDTH) / daysCount);
-  }, [containerWidth, daysCount]);
-
-  // Header y body comparten una sola fuente de scroll horizontal —
-  // sincronizados a mano (mismo mecanismo que AgendaDayView) para que nunca
-  // se desalineen entre sí.
-  const headerRowRef = useRef<HTMLDivElement | null>(null);
-  const headerScrollRef = useRef<HTMLDivElement | null>(null);
-  const bodyColumnsScrollRef = useRef<HTMLDivElement | null>(null);
-  const isSyncingScrollRef = useRef(false);
-
-  const handleHeaderScroll = useCallback(() => {
-    if (isSyncingScrollRef.current) return;
-    isSyncingScrollRef.current = true;
-    if (bodyColumnsScrollRef.current && headerScrollRef.current) {
-      bodyColumnsScrollRef.current.scrollLeft = headerScrollRef.current.scrollLeft;
-    }
-    requestAnimationFrame(() => { isSyncingScrollRef.current = false; });
-  }, []);
-
-  const handleBodyColumnsScroll = useCallback(() => {
-    if (isSyncingScrollRef.current) return;
-    isSyncingScrollRef.current = true;
-    if (headerScrollRef.current && bodyColumnsScrollRef.current) {
-      headerScrollRef.current.scrollLeft = bodyColumnsScrollRef.current.scrollLeft;
-    }
-    requestAnimationFrame(() => { isSyncingScrollRef.current = false; });
-  }, []);
-
-  const bodyMaxHeight = useAgendaBodyHeight(outerRef, headerRowRef);
-
   return (
-    <div ref={outerRef} className="bg-card overflow-clip">
-      {/* Day header row — sticky, sincronizada horizontalmente con el body */}
+    <div className="bg-card overflow-clip">
+      {/* Day header row — sticky, outside scroll container */}
       <div
-        ref={headerRowRef}
         className="flex border-b bg-muted/30 sticky top-0 z-20"
         style={{ boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}
       >
         <div className="shrink-0 border-r" style={{ width: TIME_RAIL_WIDTH }} />
-        <div ref={headerScrollRef} className="flex overflow-x-auto scrollbar-hide" onScroll={handleHeaderScroll}>
+        <div className="grid flex-1" style={{ gridTemplateColumns: `repeat(${daysCount}, minmax(0, 1fr))` }}>
           {days.map(d => {
             const isToday = isSameDay(d, today);
             return (
@@ -120,10 +63,9 @@ export function AgendaMultiDayView({
                 key={d.toISOString()}
                 onClick={() => onDayHeaderClick?.(d)}
                 className={cn(
-                  'shrink-0 px-3 py-2 border-r text-left hover:bg-muted/50 transition-colors',
+                  'px-3 py-2 border-r text-left hover:bg-muted/50 transition-colors',
                   isToday && 'bg-primary/5',
                 )}
-                style={{ width: colWidth }}
               >
                 <div className="text-[10px] uppercase text-muted-foreground">
                   {format(d, 'EEE', { locale: es })}
@@ -140,10 +82,10 @@ export function AgendaMultiDayView({
       {/* Scrollable calendar body */}
       <div
         className="overflow-y-auto overscroll-contain"
-        style={{ maxHeight: bodyMaxHeight }}
+        style={{ maxHeight: 'clamp(600px, calc(100vh - 180px), 1100px)' }}
       >
         <div className="flex" style={{ height: totalHeight }}>
-          {/* Time rail — fuera del scroller horizontal, permanece fijo */}
+          {/* Time rail */}
           <div className="shrink-0 border-r relative" style={{ width: TIME_RAIL_WIDTH }}>
             {hourRails.map((m) => (
               <div
@@ -157,11 +99,7 @@ export function AgendaMultiDayView({
           </div>
 
           {/* Day columns */}
-          <div
-            ref={bodyColumnsScrollRef}
-            className="flex overflow-x-auto relative flex-1"
-            onScroll={handleBodyColumnsScroll}
-          >
+          <div className="grid flex-1 relative" style={{ gridTemplateColumns: `repeat(${daysCount}, minmax(0, 1fr))` }}>
             {days.map(d => {
               const dStr = format(d, 'yyyy-MM-dd');
               const dayTurnos = turnos.filter(t => t.fecha === dStr);
@@ -171,19 +109,18 @@ export function AgendaMultiDayView({
               );
 
               return (
-                <div key={dStr} className="shrink-0" style={{ width: colWidth }}>
-                  <AgendaMultiDayColumn
-                    isToday={isToday}
-                    dayTurnos={dayTurnos}
-                    dayOff={dayOff}
-                    servicios={servicios}
-                    barbers={barbers}
-                    colors={colors}
-                    hourRails={hourRails}
-                    halfHourRails={halfHourRails}
-                    onTurnoClick={onTurnoClick}
-                  />
-                </div>
+                <AgendaMultiDayColumn
+                  key={dStr}
+                  isToday={isToday}
+                  dayTurnos={dayTurnos}
+                  dayOff={dayOff}
+                  servicios={servicios}
+                  barbers={barbers}
+                  colors={colors}
+                  hourRails={hourRails}
+                  halfHourRails={halfHourRails}
+                  onTurnoClick={onTurnoClick}
+                />
               );
             })}
           </div>

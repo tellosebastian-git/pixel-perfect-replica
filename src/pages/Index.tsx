@@ -1,4 +1,3 @@
-import { useFinanceDemo } from '@/contexts/FinanceDemoContext';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Scissors, Lock, Loader2 } from 'lucide-react';
 import { PaymentRegistration } from '@/components/PaymentRegistration';
@@ -19,6 +18,7 @@ import { useTransactions } from '@/hooks/useTransactions';
 import { useSubscriptionAccess } from '@/hooks/useSubscriptionAccess';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useAuth } from '@/contexts/AuthContext';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { getRequiredPlan, planAllowsFeature, resolveEffectivePlan } from '@/lib/planAccess';
 import { useSucursal } from '@/contexts/SucursalContext';
@@ -29,10 +29,10 @@ import { OnboardingTooltip } from '@/components/onboarding/OnboardingTooltip';
 import { ResumenMensualStory } from '@/components/resumenMensual/ResumenMensualStory';
 
 const Index = () => {
-  const demo = useFinanceDemo();
+  const isMobile = useIsMobile();
   const { user, canManagePayments, canOperarCajaYGastos, canManageConfig, canViewConfig, isOwner, hasNoAccess, canViewResumen, canViewTareas, canViewMiNegocio, canViewFinanzas, canViewTurnosAgenda, canViewClientes, roles, isLoading: authLoading } = useAuth();
   const { organization } = useOrganization();
-  usePushNotifications(demo.active ? undefined : user?.id, demo.active ? undefined : organization?.id);
+  usePushNotifications(user?.id, organization?.id);
   const { access: subscriptionAccess } = useSubscriptionAccess();
   const onboarding = useOnboarding();
   const effectivePlan = resolveEffectivePlan(subscriptionAccess, organization?.plan);
@@ -47,37 +47,32 @@ const Index = () => {
     return 'no-access';
   };
   
-  const [activeTab, setActiveTab] = useState(() => demo.active ? 'finanzas' : getDefaultTab());
-  const navigateFromFinance = useCallback((action: () => void) => demo.requestExit(action), [demo.requestExit]);
+  const [activeTab, setActiveTab] = useState(getDefaultTab);
   const [configInitialSection, setConfigInitialSection] = useState<'menu' | 'payments' | 'mercadopago' | 'plan' | 'pin' | 'tareas' | 'notificaciones' | 'mi-cuenta'>('menu');
   const prevActiveTabRef = useRef(activeTab);
   const miNegocioPanelRef = useRef<MiNegocioPanelHandle>(null);
 
   // Register tab setter so onboarding can drive navigation
   useEffect(() => {
-    onboarding.registerTabSetter((t) => {
-      if (t === 'finanzas') setActiveTab(t);
-      else navigateFromFinance(() => setActiveTab(t));
-    });
+    onboarding.registerTabSetter((t) => setActiveTab(t));
     return () => onboarding.registerTabSetter(null);
-  }, [onboarding, navigateFromFinance]);
+  }, [onboarding]);
 
   // Intercepted tab change: blocks navigation outside of allowed tabs during onboarding
   const handleTabChange = (tab: string) => {
     if (onboarding.isActive && !onboarding.isAllowedTab(tab)) return;
-    if (tab === 'finanzas') setActiveTab(tab);
-    else navigateFromFinance(() => setActiveTab(tab));
+    setActiveTab(tab);
   };
 
-  const goToGeneralConfig = () => navigateFromFinance(() => {
+  const goToGeneralConfig = () => {
     setConfigInitialSection('payments');
     setActiveTab('config');
-  });
+  };
 
-  const goToBilling = useCallback(() => navigateFromFinance(() => {
+  const goToBilling = useCallback(() => {
     setConfigInitialSection('plan');
     setActiveTab('config');
-  }), [navigateFromFinance]);
+  }, []);
 
   useEffect(() => {
     if (!rolesLoaded) {
@@ -137,7 +132,7 @@ const Index = () => {
   const { currentSucursal } = useSucursal();
   const { barbers: cobrarBarbers, isLoading: cobrarBarbersLoading, error: cobrarBarbersError, retry: retryCobrarBarbers, refetch: refetchCobrarBarbers } = useCobrarBarbers();
 
-  const goToTeamSetup = useCallback(() => navigateFromFinance(() => {
+  const goToTeamSetup = useCallback(() => {
     if (organization?.id && currentSucursal?.id) {
       const storageKey = `vittro:miNegocio:activeTab:${organization.id}`;
       try {
@@ -147,9 +142,9 @@ const Index = () => {
       }
     }
     setActiveTab('mi-negocio');
-  }), [navigateFromFinance, organization?.id, currentSucursal?.id]);
+  }, [organization?.id, currentSucursal?.id]);
 
-  const navigateToMiNegocioEquipo = useCallback((sucursalId: string, barberoId: string) => navigateFromFinance(() => {
+  const navigateToMiNegocioEquipo = useCallback((sucursalId: string, barberoId: string) => {
     if (activeTab === 'mi-negocio') {
       miNegocioPanelRef.current?.navigateToSucursalEquipo(sucursalId, barberoId);
     } else {
@@ -163,9 +158,9 @@ const Index = () => {
       }
       setActiveTab('mi-negocio');
     }
-  }), [navigateFromFinance, activeTab, organization?.id]);
+  }, [activeTab, organization?.id]);
 
-  const navigateToMiNegocioHorarios = useCallback((sucursalId: string) => navigateFromFinance(() => {
+  const navigateToMiNegocioHorarios = useCallback((sucursalId: string) => {
     if (activeTab === 'mi-negocio') {
       miNegocioPanelRef.current?.navigateToSucursalHorarios(sucursalId);
     } else {
@@ -179,7 +174,7 @@ const Index = () => {
       }
       setActiveTab('mi-negocio');
     }
-  }), [navigateFromFinance, activeTab, organization?.id]);
+  }, [activeTab, organization?.id]);
 
   // Refresca datos solo cuando se entra a Cobrar desde otra pestaña.
   useEffect(() => {
@@ -194,8 +189,7 @@ const Index = () => {
   const summary = getDailySummary();
   const showLoadingScreen = useLoadingScreenMounted(showBlockingLoader);
 
-  const displayedTab = demo.active ? 'finanzas' : activeTab;
-  if (showLoadingScreen && displayedTab !== 'finanzas') {
+  if (showLoadingScreen) {
     return (
       <LoadingScreen
         loading={showBlockingLoader}
@@ -205,7 +199,7 @@ const Index = () => {
     );
   }
 
-  if (blockingError && displayedTab !== 'finanzas') {
+  if (blockingError) {
     return (
       <RecoverableErrorScreen
         title="No pudimos cargar los datos"
@@ -216,17 +210,15 @@ const Index = () => {
   }
 
   return (
-    <div className="h-svh overflow-hidden bg-background flex w-full">
-      <AppSidebar activeTab={displayedTab} onTabChange={handleTabChange} />
-      {!demo.active && <>
-        <OnboardingOverlay />
-        <OnboardingTooltip />
-        <ResumenMensualStory />
-      </>}
+    <div className="h-screen overflow-hidden bg-background flex w-full">
+      <AppSidebar activeTab={activeTab} onTabChange={handleTabChange} />
+      <OnboardingOverlay />
+      <OnboardingTooltip />
+      <ResumenMensualStory />
 
       <main className={cn("h-full min-w-0 flex-1 overflow-y-auto overflow-x-hidden")}>
-        <div className={cn("mx-auto px-4 py-6 sm:px-6 md:px-8", displayedTab === 'turnos-agenda' ? "max-w-none px-4 md:px-4" : "max-w-7xl")}>
-          {displayedTab === 'registro' && canOperarCajaYGastos && (
+        <div className={cn("mx-auto px-4 py-6 sm:px-6 md:px-8", activeTab === 'turnos-agenda' ? "max-w-none px-4 md:px-4" : "max-w-7xl")}>
+          {activeTab === 'registro' && canOperarCajaYGastos && (
             <PaymentRegistration
               services={services}
               extras={extras}
@@ -238,7 +230,7 @@ const Index = () => {
               lines={lines}
               sucursalId={currentSucursal?.id || null}
               onSubmit={addTransaction}
-              onNavigateToTareas={() => handleTabChange('tareas')}
+              onNavigateToTareas={() => setActiveTab('tareas')}
               onNavigateToTeamSetup={goToTeamSetup}
               onNavigateToBilling={goToBilling}
               canViewDailyTurnos={planAllowsFeature(effectivePlan, 'appointments')}
@@ -246,7 +238,7 @@ const Index = () => {
             />
           )}
 
-          {displayedTab === 'resumen' && canViewResumen && (
+          {activeTab === 'resumen' && canViewResumen && (
             <DailySummary 
               summary={summary} 
               barbers={barbers}
@@ -258,7 +250,7 @@ const Index = () => {
             />
           )}
 
-          {displayedTab === 'finanzas' && canViewFinanzas && (
+          {activeTab === 'finanzas' && canViewFinanzas && (
             <FinanzasPanel
               barbers={barbers}
               currentPlan={effectivePlan}
@@ -267,7 +259,7 @@ const Index = () => {
             />
           )}
 
-          {displayedTab === 'tareas' && canViewTareas && (
+          {activeTab === 'tareas' && canViewTareas && (
             planAllowsFeature(effectivePlan, 'tasks') ? (
               <TareasPanel barbers={allBarbers} />
             ) : (
@@ -283,7 +275,7 @@ const Index = () => {
           )}
 
           {/* Welcome / loading screen */}
-          {displayedTab === 'welcome' && (
+          {activeTab === 'welcome' && (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
                 <Scissors className="h-10 w-10 text-primary" />
@@ -300,7 +292,7 @@ const Index = () => {
           )}
 
           {/* Real no-access (role is 'otros') */}
-          {displayedTab === 'no-access' && (
+          {activeTab === 'no-access' && (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <Lock className="h-16 w-16 text-muted-foreground mb-4" />
               <h2 className="text-xl font-semibold text-foreground mb-2">Sin acceso</h2>
@@ -310,7 +302,7 @@ const Index = () => {
             </div>
           )}
 
-          {displayedTab === 'turnos-agenda' && canViewTurnosAgenda && (
+          {activeTab === 'turnos-agenda' && canViewTurnosAgenda && (
             planAllowsFeature(effectivePlan, 'appointments') ? (
               <TurnosAgendaPanel onNavigateToHorarios={canViewMiNegocio ? navigateToMiNegocioHorarios : undefined} />
             ) : (
@@ -325,7 +317,7 @@ const Index = () => {
             )
           )}
 
-          {displayedTab === 'clientes' && canViewClientes && (
+          {activeTab === 'clientes' && canViewClientes && (
             planAllowsFeature(effectivePlan, 'clients') ? (
               <ClientesPanel />
             ) : (
@@ -340,7 +332,7 @@ const Index = () => {
             )
           )}
 
-          {displayedTab === 'mi-negocio' && canViewMiNegocio && (
+          {activeTab === 'mi-negocio' && canViewMiNegocio && (
             <MiNegocioPanel
               ref={miNegocioPanelRef}
               onGoToGeneralConfig={canManageConfig ? goToGeneralConfig : undefined}
@@ -348,7 +340,7 @@ const Index = () => {
             />
           )}
 
-          {displayedTab === 'config' && canViewConfig && (
+          {activeTab === 'config' && canViewConfig && (
             <ConfigurationPanel
               initialSection={configInitialSection}
               onSectionChange={setConfigInitialSection}

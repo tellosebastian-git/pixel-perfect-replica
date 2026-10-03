@@ -5,7 +5,6 @@ import { ReadCancelledError, runReadWithRetry, shortDiagId, type ReadAttempt } f
 export type ReadPhase = 'loading' | 'ready' | 'refetching' | 'stale' | 'error';
 
 export interface UseReadStateOptions {
-  enabled?: boolean;
   /**
    * Clave del contexto (organización+sucursal, + dimensiones propias como
    * fecha o rango cuando corresponda). Cambia en el mismo render que la
@@ -43,10 +42,7 @@ export interface UseReadStateResult<T> {
  * `InlineReadError`, `StaleDataNotice` donde corresponda).
  */
 export function useReadState<T>(options: UseReadStateOptions): UseReadStateResult<T> {
-  const { enabled = true, contextKey, errorMessage, staleErrorMessage, surfaceId, retryDelaysMs, timeoutMs } = options;
-
-  const enabledRef = useRef(enabled);
-  useLayoutEffect(() => { enabledRef.current = enabled; }, [enabled]);
+  const { contextKey, errorMessage, staleErrorMessage, surfaceId, retryDelaysMs, timeoutMs } = options;
 
   const [phase, setPhase] = useState<ReadPhase>('loading');
   const [data, setData] = useState<T | null>(null);
@@ -71,7 +67,6 @@ export function useReadState<T>(options: UseReadStateOptions): UseReadStateResul
   const retryRef = useRef<() => void>(() => {});
 
   const run = useCallback((fetcher: ReadAttempt<T>) => {
-    if (!enabledRef.current) return;
     lastFetcherRef.current = fetcher;
     const myContextKey = contextKey;
 
@@ -82,7 +77,7 @@ export function useReadState<T>(options: UseReadStateOptions): UseReadStateResul
     abortControllerRef.current = controller;
     const myRequestId = ++requestIdRef.current;
     const stillCurrent = () =>
-      enabledRef.current && !controller.signal.aborted && myContextKey === currentContextKeyRef.current && myRequestId === requestIdRef.current;
+      myContextKey === currentContextKeyRef.current && myRequestId === requestIdRef.current;
 
     const hadData = dataRef.current !== null;
     setPhase(hadData ? 'refetching' : 'loading');
@@ -121,7 +116,7 @@ export function useReadState<T>(options: UseReadStateOptions): UseReadStateResul
         }
       }
     })();
-  }, [enabled, contextKey, errorMessage, staleErrorMessage, surfaceId, retryDelaysMs, timeoutMs]);
+  }, [contextKey, errorMessage, staleErrorMessage, surfaceId, retryDelaysMs, timeoutMs]);
 
   const retry = useCallback(() => {
     if (lastFetcherRef.current) run(lastFetcherRef.current);
@@ -134,8 +129,7 @@ export function useReadState<T>(options: UseReadStateOptions): UseReadStateResul
     return () => {
       abortControllerRef.current?.abort();
     };
-  }, [contextKey, enabled]);
+  }, [contextKey]);
 
-  if (!enabled) return { phase: 'ready', data: null, error: null, isStale: false, run, retry };
   return { phase, data, error, isStale, run, retry };
 }

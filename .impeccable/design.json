@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-28T13:00:00Z",
+  "generatedAt": "2026-08-22T00:00:00Z",
   "title": "Design System: Vittro",
   "extensions": {
     "colorMeta": {
@@ -39,9 +39,7 @@
     "breakpoints": [
       { "name": "sm", "value": "640px" },
       { "name": "md", "value": "768px" },
-      { "name": "lg", "value": "1024px" },
-      { "name": "xl", "value": "1280px" },
-      { "name": "2xl", "value": "1536px" }
+      { "name": "lg", "value": "1024px" }
     ]
   },
   "components": [
@@ -133,19 +131,11 @@
       { "name": "Expresividad de hito", "body": "Sobrio por defecto; animación memorable solo en hitos del negocio (cobro, cierre, turno), breve y nunca bloqueante. Feedback reforzado, no decoración.", "section": "components" },
       { "name": "The Delayed-Skeleton Rule", "body": "El skeleton aparece recién tras ~180ms vía useDelayedVisible. Si los datos llegan antes, se pasa directo al contenido. El delay gatea solo la presentación: no retrasa fetch ni impone duración mínima al skeleton.", "section": "components" },
       { "name": "The Silent-Refetch Rule", "body": "El skeleton pertenece a la primera carga. Si ya hay contenido utilizable, un refetch lo mantiene visible hasta que llegan los datos nuevos — nunca vuelve al skeleton.", "section": "components" },
-      { "name": "Loading en tres clases", "body": "Loading de contenido → Skeleton con geometría fiel. Pending de acción → spinner en el control + texto de progreso, nunca skeleton. Loading global branded → LoadingScreen, exclusivo del arranque.", "section": "components" },
-      { "name": "Modos de ventana y resolución de layout", "body": "Compact <640px, Medium 640–1023px, Expanded ≥1024px deciden solo shell/navegación/regiones — no reemplazan md/xl/2xl para decisiones dentro de una región. Layout: intrínseco → medición del contenedor → container query → media query, en ese orden. Fronteras centralizadas en src/lib/breakpoints.ts; useWindowMode() las lee solo donde CSS no puede decidir (side/align de Radix, filtro de onboarding, cierre del drawer al navegar en Compact).", "section": "layout" },
-      { "name": "La regla del dinero", "body": "Todo importe usa tabular-nums, nunca se trunca/usa ellipsis/se solapa/desaparece. $99.999.999 (8 dígitos) es baseline de QA, no techo. Ante falta de espacio: crecer, reducir columnas, reflowear, una sola columna. Nunca crop. Reservas: --metric-min (96px), --kpi-min (180px).", "section": "typography" },
-      { "name": "El riel responsive de AppSidebar", "body": "Compact: drawer con hamburguesa y scrim, se cierra solo al navegar. Medium: riel persistente de 64px, único estado — ícono + etiqueta Micro siempre visible, nunca depende de title/hover. Expanded: sidebar persistente, colapsable a riel o expandido con un toggle exclusivo de este modo.", "section": "components" },
-      { "name": "Contrato físico de overlays", "body": "DrawerForm/Dialog/AlertDialog/Popover/DropdownMenu entran siempre en el viewport por construcción de la primitiva, nunca por protección opt-in del consumidor. Ancho = min(máximo deseado, viewport disponible − gutter). Dialog/AlertDialog: max-h-[85svh] + overflow-y-auto + gutter de 2rem. Popover/DropdownMenu: max-height leída de --radix-*-content-available-height, no un máximo fijo. Select y Sheet ya cumplían, auditados sin cambios.", "section": "components" },
-      { "name": "Tabs nunca envuelve; Tabs vs. SectionNav", "body": "TabsList variant=underline es siempre una sola línea, nunca flex-wrap: overflow-x-auto sin scrollbar visible más chevrons explícitos izquierda/derecha (ui/NavOverflowControls.tsx) solo del lado con contenido oculto; se ocultan al llegar al extremo, están también en touch, solo desplazan la tira y nunca activan un tab. Cada toque pagina alineando un destino completo. Los chevrons van superpuestos (sin reservar ancho), fuera del role=tablist, orden DOM = orden de foco, con aria-label y aria-controls; el degradé es solo su fondo. La tab activa se lleva al área útil (completa y fuera de los chevrons) moviendo solo scrollLeft, únicamente cuando cambia a active. Suave, instantáneo con prefers-reduced-motion. Tabs cambia contenido montado; SectionNav (ui/SectionNav.tsx) desplaza a una sección ya montada con el mismo mecanismo, sin breakpoints; rastrea la sección activa con IntersectionObserver (rootMargin medido contra la altura real de su propio nav, que los chevrons no alteran), aria-current=location.", "section": "components" },
-      { "name": "MetricGroup, RecordRow y Tabla comparativa", "body": "MetricGroup (ui/MetricGroup.tsx): flex-wrap + flex-basis: var(--metric-min|--kpi-min), no CSS Grid auto-fit — auto-fit con minmax(...,1fr) deja que una cifra ancha se solape con la columna vecina, probado con $1.234.567.890. RecordRow (ui/RecordRow.tsx): identidad (min-w-0, sin truncar salvo interacción real) → métricas → acciones (shrink-0, siempre visibles). Registro (RecordRow) vs. Tabla comparativa (ui/table.tsx) es semántica, no cantidad de columnas. Table.comparative es opt-in (default false, byte-idéntica a antes de C7.5 sin la prop) — con comparative=true agrega la afordancia de fade de C7.4 sobre su wrapper overflow-auto, inerte salvo que desborde. Primer consumidor real (C7.6): Sueldos → Cierres de Caja, más MetricDetailDialog/DonutDetailDialog de Estadísticas.", "section": "components" },
-      { "name": "Grid bidimensional (Agenda)", "body": "Cuando tanto la posición horizontal como la vertical contienen información (Agenda: barbero/día × hora), no se resuelve reflowendo a una columna. Contrato: ancho mínimo por columna medido con ResizeObserver sobre el contenedor real (Día: 160px, multi-día: 128px) — crece si sobra espacio, nunca baja del mínimo; si no entra, scroll horizontal local con header/body sincronizados; Semana conserva siempre 7 columnas. Detalle en docs/MODULOS/turnos-agenda.md.", "section": "layout" }
+      { "name": "Loading en tres clases", "body": "Loading de contenido → Skeleton con geometría fiel. Pending de acción → spinner en el control + texto de progreso, nunca skeleton. Loading global branded → LoadingScreen, exclusivo del arranque.", "section": "components" }
     ],
     "dos": [
       "Do usar focus-visible:ring-2 ring-ring como único patrón de foco.",
-      "Do contratar el área táctil por capacidad de puntero: pointer:coarse → ~44px objetivo / 40px piso (visual puede seguir en 28–32px si el hit-area se amplía); pointer:fine puede conservar más densidad.",
-      "Do detectar capacidades de puntero (hover, pointer, any-pointer) para decisiones de interacción — nunca inferirlas del ancho.",
+      "Do dar a acciones principales targets táctiles cómodos (→44px); en controles densos, ampliar el área táctil real.",
       "Do reservar la expresividad para hitos del negocio: breve, memorable, nunca bloqueante.",
       "Do escribir todo copy en rioplatense con voseo.",
       "Do usar Lucide como único set de íconos.",
@@ -162,9 +152,7 @@
       "Don't deshabilitar el zoom del navegador para esconder problemas tipográficos.",
       "Don't volver al skeleton en un refetch cuando ya hay contenido en pantalla, ni escribir un skeleton cuya geometría no corresponda al layout que va a aparecer.",
       "Don't usar el loader branded (LoadingScreen) dentro de una sección — es exclusivo del arranque global.",
-      "Don't usar densidad como excusa para controles difíciles de tocar, ni convertir la metáfora del mostrador en decoración temática.",
-      "Don't usar hover como único mecanismo para revelar o ejecutar una acción interactiva.",
-      "Don't usar overflow-x-hidden/overflow-clip/overflow-hidden como estrategia responsive — solo sobre contenido cuyo ancho ya está garantizado."
+      "Don't usar densidad como excusa para controles difíciles de tocar, ni convertir la metáfora del mostrador en decoración temática."
     ]
   }
 }

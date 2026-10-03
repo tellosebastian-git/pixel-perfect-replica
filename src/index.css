@@ -106,16 +106,6 @@
        tiles del resumen mensual) — DESIGN.md § Shapes. No usar en otro rol. */
     --radius-tile: 0.625rem;
 
-    /* Reservas mínimas de ancho para datos financieros — DESIGN.md → Layout
-       § Métricas financieras y Typography § "La regla del dinero" (C7.1).
-       Son un piso, no un máximo: el bloque crece con `1fr` cuando hay
-       espacio y el grupo reflowea a menos columnas cuando no lo hay. Medido
-       para sostener `$ 99.999.999` (8 dígitos, baseline de diseño y QA, no
-       techo) en Inter 14px/500 + su etiqueta más larga sin truncar.
-       C7.1 solo los define — ningún componente los consume todavía. */
-    --metric-min: 96px; /* piso de un bloque etiqueta+cifra (ej. fila de Sueldos) */
-    --kpi-min: 180px; /* piso de una card KPI con cifra destacada + ícono */
-
     /* Sidebar tokens */
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 232 79% 5%;
@@ -490,29 +480,4 @@
 }
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
-}
-
-/*
- * Utilidad de hit-area — amplía el área táctil real de un control sin
- * alterar su tamaño visual (DESIGN.md → Do's/Don'ts, "Área táctil"; C7.1).
- * No-op en `pointer: fine` (mouse/trackpad): la densidad visual de
- * escritorio no cambia. En `pointer: coarse` (touch), un `::after`
- * transparente extiende el área interactiva 8px por lado — sube un control
- * visual de 28px (el kebab canónico, DESIGN.md → Components) al objetivo
- * de ~44px, y uno de 32px a ~48px, sin inflar la composición.
- *
- * Requiere que el propio elemento reciba esta clase (se vuelve el
- * contenedor posicional de su ::after) — no requiere cambios en su padre.
- * No aplicada a ningún componente todavía: C7.1 solo define la utilidad,
- * la migración de consumidores pertenece a builds posteriores.
- */
-@media (pointer: coarse) {
-  .hit-area-expand {
-    position: relative;
-  }
-  .hit-area-expand::after {
-    content: '';
-    position: absolute;
-    inset: -8px;
-  }
 }

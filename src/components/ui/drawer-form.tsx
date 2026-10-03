@@ -3,7 +3,7 @@ import { X, type LucideIcon } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
-import { Sheet, SheetDescription, SheetOverlay, SheetPortal } from "@/components/ui/sheet";
+import { Sheet, SheetOverlay, SheetPortal } from "@/components/ui/sheet";
 import { useSwipeToClose } from "@/hooks/use-swipe-to-close";
 import {
   AlertDialog,
@@ -20,8 +20,6 @@ interface DrawerFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: React.ReactNode;
-  /** Descripción accesible del propósito del panel. */
-  description?: React.ReactNode;
   size: "sm" | "md" | "lg";
   children: React.ReactNode;
   /** Omitilo cuando el formulario no necesita acciones fijas al pie (ej. edición inline dentro del body). */
@@ -35,7 +33,7 @@ interface DrawerFormProps {
   isDirty?: boolean;
 }
 
-export function DrawerForm({ open, onOpenChange, title, description, size, children, footer, isDirty = false }: DrawerFormProps) {
+export function DrawerForm({ open, onOpenChange, title, size, children, footer, isDirty = false }: DrawerFormProps) {
   const [confirmDiscardOpen, setConfirmDiscardOpen] = React.useState(false);
 
   const handleOpenChange = (next: boolean) => {
@@ -67,11 +65,7 @@ export function DrawerForm({ open, onOpenChange, title, description, size, child
               "data-[state=closed]:duration-200 data-[state=open]:duration-300",
               "[animation-timing-function:cubic-bezier(0.23,1,0.32,1)]",
               "w-[calc(100%-48px)]",
-              size === "sm"
-                ? "sm:w-[min(380px,calc(100%-48px))]"
-                : size === "md"
-                  ? "sm:w-[min(520px,calc(100%-48px))]"
-                  : "sm:w-[min(680px,calc(100%-48px))]",
+              size === "sm" ? "sm:w-[380px]" : size === "md" ? "sm:w-[520px]" : "sm:w-[680px]",
             )}
           >
             {/* Header — zona de swipe-to-close incondicional (no tiene scroll propio) */}
@@ -79,9 +73,6 @@ export function DrawerForm({ open, onOpenChange, title, description, size, child
               <SheetPrimitive.Title className="text-lg font-semibold text-foreground">
                 {title}
               </SheetPrimitive.Title>
-              <SheetDescription className="sr-only">
-                {description ?? "Formulario lateral de edición."}
-              </SheetDescription>
               <SheetPrimitive.Close className="rounded-md opacity-70 ring-offset-background transition-opacity duration-150 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-0 disabled:pointer-events-none">
                 <X className="h-4 w-4" />
                 <span className="sr-only">Cerrar</span>

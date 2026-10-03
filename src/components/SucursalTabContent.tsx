@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
 import { StatusPill } from '@/components/ui/StatusPill';
-import { SectionNav } from '@/components/ui/SectionNav';
 import { MapPin, Phone, Building2, AlertTriangle, KeyRound, Info, MoreVertical } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { DrawerForm } from '@/components/ui/drawer-form';
@@ -212,6 +211,10 @@ export function SucursalTabContent({
 
   const isInactive = !sucursal.activa;
 
+  const scrollTo = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   return (
     <div className="mt-4 space-y-6 sm:mt-6">
       {/* Banner contextual de la vista Sucursal */}
@@ -220,17 +223,34 @@ export function SucursalTabContent({
         <p>Configurá lo específico de esta sucursal: precios, stock, equipo y métodos de pago. El catálogo base y la compensación se definen desde la vista General.</p>
       </div>
 
-      <SectionNav
-        items={[
-          { id: 'seccion-informacion', label: 'Información' },
-          { id: 'seccion-equipo', label: 'Equipo' },
-          ...(canManageHorarios ? [{ id: 'seccion-horarios', label: 'Horarios' }] : []),
-          { id: 'seccion-servicios', label: 'Servicios' },
-          { id: 'seccion-productos', label: 'Productos' },
-          { id: 'seccion-descuentos', label: 'Descuentos' },
-          { id: 'seccion-metodos-pago', label: 'Métodos de pago' },
-        ]}
-      />
+      {/* Anchor nav — solo desktop */}
+      <nav className="hidden md:block sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border/60 py-2 shadow-sm">
+        <div className="flex items-center gap-1 overflow-x-auto">
+          <button onClick={() => scrollTo('seccion-informacion')} className="shrink-0 rounded px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+            Información
+          </button>
+          <button onClick={() => scrollTo('seccion-equipo')} className="shrink-0 rounded px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+            Equipo
+          </button>
+          {canManageHorarios && (
+            <button onClick={() => scrollTo('seccion-horarios')} className="shrink-0 rounded px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+              Horarios
+            </button>
+          )}
+          <button onClick={() => scrollTo('seccion-servicios')} className="shrink-0 rounded px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+            Servicios
+          </button>
+          <button onClick={() => scrollTo('seccion-productos')} className="shrink-0 rounded px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+            Productos
+          </button>
+          <button onClick={() => scrollTo('seccion-descuentos')} className="shrink-0 rounded px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+            Descuentos
+          </button>
+          <button onClick={() => scrollTo('seccion-metodos-pago')} className="shrink-0 rounded px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+            Métodos de pago
+          </button>
+        </div>
+      </nav>
 
       {/* Información de la sucursal */}
       <div id="seccion-informacion">

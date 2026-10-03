@@ -28,11 +28,6 @@ permisivos o restrictivos que esta definición, y eso es estado, no la definici�
 - **Cliente final** — no tiene cuenta interna; reserva y gestiona turnos desde el
   portal público de cada barbería.
 
-El **administrador de plataforma** es una identidad interna de Vittro, no un rol
-tenant ni un usuario de una barbería. Su permiso vive exclusivamente en
-`app_metadata.platform_role = "platform_admin"`; no forma parte de `app_role`,
-`user_roles` ni del modelo de permisos delegables por una organización.
-
 ## Product Purpose
 
 Vittro es un SaaS multi-tenant de gestión integral para barberías. Sostiene dos
@@ -81,7 +76,7 @@ internacionalizar moneda, medios de pago, idioma, terminología e integraciones
 locales en el futuro. Ningún principio de producto debe asumir Argentina como
 condición estructural.
 
-Cuatro superficies con objetivos distintos, que no deben contaminarse entre sí:
+Tres superficies con objetivos distintos, que no deben contaminarse entre sí:
 
 - **App interna** (modo Operate) — superficie principal; prioriza claridad,
   rapidez, previsibilidad, densidad útil, estados comprensibles, baja fricción
@@ -91,10 +86,6 @@ Cuatro superficies con objetivos distintos, que no deben contaminarse entre sí:
   no la de Vittro.
 - **Homepage comercial** (modo Persuade) — explica valor y convierte. Sus
   necesidades visuales no deben condicionar el diseño de la app operativa.
-- **Centro de administración de plataforma** (`/admin`, modo Operate interno) —
-  permite observar y controlar la salud comercial global de Vittro sin entrar en
-  la operación de una barbería. Tiene autenticación, sesión, shell y APIs propios;
-  no hereda el contexto de organización/sucursal de la app interna.
 
 ## Capabilities and Constraints
 
@@ -107,15 +98,7 @@ organización.
 
 Modelo comercial: planes **Básico / Profesional / Premium** con feature-gating
 real (algunas capacidades requieren un plan superior), trial de 15 días, y
-suscripción integrada actualmente con Mercado Pago. `subscription_plans.amount_ars`
-es la única fuente de precio para Homepage, Registro, Facturación, gates y
-checkout. Cada precio tiene una versión auditable para que el catálogo, los
-checkouts y las renovaciones no diverjan.
-
-El centro de administración v1 cubre resumen global, barberías, usuarios,
-suscripciones, pagos, auditoría y edición auditada de precios. Quedan fuera de
-esta primera versión los datos operativos de las barberías, clientes finales,
-ventas, finanzas internas, impersonación y administración de cuentas.
+suscripción integrada actualmente con Mercado Pago.
 
 Terminología: los nombres de módulo actuales (Cobrar, Caja, Turnos, Clientes,
 Finanzas, Tareas, Mi Negocio, Configuración) son el vocabulario vigente, **no
@@ -151,9 +134,8 @@ persuasivas lo afirmen, salvo confirmación explícita posterior.
    repetido durante la jornada sea predecible.
 4. Estados y consecuencias claras — cada acción responde con feedback visible
    (éxito, error, pendiente); nada de ambigüedad sobre qué pasó.
-5. Cada superficie sirve a su propio objetivo — Operate tenant, cliente final,
-   Persuade y administración de plataforma no se resuelven con el mismo
-   tratamiento ni comparten contexto de acceso por conveniencia.
+5. Cada superficie sirve a su propio objetivo — Operate, cliente final o
+   Persuade no se resuelven con el mismo tratamiento.
 
 ## Accessibility & Inclusion
 

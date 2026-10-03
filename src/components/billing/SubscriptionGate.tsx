@@ -1,6 +1,4 @@
-import { useFinanceDemo } from '@/contexts/FinanceDemoContext';
-import { DEMO_IDENTITY } from '@/lib/financeDemoData';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, BadgeCheck, CreditCard, Crown, Loader2, LogOut, RefreshCw, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -10,10 +8,17 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import type { BillingPlanCode, SubscriptionAccess } from '@/hooks/useSubscriptionAccess';
-import { formatSubscriptionPrice, useSubscriptionPlans } from '@/hooks/useSubscriptionPlans';
 import { getFunctionErrorMessage } from '@/lib/functionErrors';
 import { PLAN_BENEFITS, PLAN_SUMMARY } from '@/lib/planAccess';
+import { supabaseUntyped } from '@/lib/supabaseUntyped';
 import { cn } from '@/lib/utils';
+
+interface SubscriptionPlan {
+  code: BillingPlanCode;
+  name: string;
+  amount_ars: number | string;
+  sort_order: number;
+}
 
 interface SubscriptionGateProps {
   access: SubscriptionAccess | null;
@@ -25,6 +30,14 @@ const PLAN_ACCENTS: Record<BillingPlanCode, string> = {
   profesional: 'border-status-info/40 bg-status-info-bg/40',
   premium: 'border-status-warning/50 bg-status-warning-bg/50',
 };
+
+function formatPrice(value: number | string) {
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 0,
+  }).format(Number(value));
+}
 
 function gateCopy(access: SubscriptionAccess | null) {
   switch (access?.block_reason) {
@@ -52,20 +65,47 @@ function gateCopy(access: SubscriptionAccess | null) {
 }
 
 export function SubscriptionGate({ access, onRetry }: SubscriptionGateProps) {
-  const demo = useFinanceDemo();
   const { signOut, isOwner, isGeneralManager } = useAuth();
   const { organization } = useOrganization();
-  const {
-    data: plans = [],
-    isLoading: plansLoading,
-    isError: plansError,
-    refetch: refreshPlans,
-  } = useSubscriptionPlans();
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [plansLoading, setPlansLoading] = useState(true);
+  const [plansError, setPlansError] = useState<string | null>(null);
   const [checkoutPlan, setCheckoutPlan] = useState<BillingPlanCode | null>(null);
 
   const canManageBilling = isOwner || isGeneralManager;
   const copy = gateCopy(access);
   const hasPreviousPlan = Boolean(access?.current_plan_code);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchPlans() {
+      setPlansLoading(true);
+      setPlansError(null);
+
+      try {
+        const { data, error } = await supabaseUntyped
+          .from<SubscriptionPlan>('subscription_plans')
+          .select('code, name, amount_ars, sort_order')
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true });
+
+        if (error) throw error;
+        if (!cancelled) setPlans((data ?? []) as SubscriptionPlan[]);
+      } catch (err) {
+        console.error('[subscription-gate] plans error:', err);
+        if (!cancelled) setPlansError('No pudimos cargar los planes.');
+      } finally {
+        if (!cancelled) setPlansLoading(false);
+      }
+    }
+
+    void fetchPlans();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const currentPlanLabel = useMemo(() => {
     const code = access?.current_plan_code ?? access?.effective_plan_code;
@@ -118,7 +158,7 @@ export function SubscriptionGate({ access, onRetry }: SubscriptionGateProps) {
               </p>
               {organization?.name && (
                 <p className="mt-3 text-sm text-muted-foreground">
-                  Negocio: <span className="font-medium text-foreground">{demo.active ? DEMO_IDENTITY.organization : organization.name}</span>
+                  Negocio: <span className="font-medium text-foreground">{organization.name}</span>
                 </p>
               )}
             </div>
@@ -160,21 +200,13 @@ export function SubscriptionGate({ access, onRetry }: SubscriptionGateProps) {
               <Badge variant="secondary">Mercado Pago</Badge>
             </div>
 
-            {plansLoading && plans.length === 0 ? (
+            {plansLoading ? (
               <div className="rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground">
                 Cargando planes...
               </div>
-            ) : plansError && plans.length === 0 ? (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-status-error/30 bg-status-error-bg p-4 text-sm text-status-error-foreground">
-                <span>No pudimos cargar los precios de los planes.</span>
-                <Button variant="outline" size="sm" onClick={() => void refreshPlans()}>
-                  <RefreshCw className="h-4 w-4" />
-                  Reintentar
-                </Button>
-              </div>
-            ) : plans.length === 0 ? (
-              <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
-                No hay planes disponibles en este momento.
+            ) : plansError ? (
+              <div className="rounded-lg border border-status-error/30 bg-status-error-bg p-4 text-sm text-status-error-foreground">
+                {plansError}
               </div>
             ) : (
               <div className="grid gap-3 md:grid-cols-3">
@@ -189,7 +221,7 @@ export function SubscriptionGate({ access, onRetry }: SubscriptionGateProps) {
                           <div>
                             <CardTitle className="text-lg">{plan.name}</CardTitle>
                             <p className="mt-1 text-2xl font-semibold text-foreground">
-                              {formatSubscriptionPrice(plan.amount_ars)}
+                              {formatPrice(plan.amount_ars)}
                             </p>
                           </div>
                           {plan.code === 'premium' ? (
@@ -228,7 +260,7 @@ export function SubscriptionGate({ access, onRetry }: SubscriptionGateProps) {
                         </ul>
                         <Button
                           className="w-full"
-                          onClick={() => demo.requestExit(() => { void startCheckout(plan.code); })}
+                          onClick={() => startCheckout(plan.code)}
                           disabled={isLoading}
                         >
                           {isLoading ? (

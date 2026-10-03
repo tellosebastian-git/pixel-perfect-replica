@@ -1,5 +1,3 @@
-import { useFinanceDemo } from '@/contexts/FinanceDemoContext';
-import { isFinanceDemoActive } from '@/lib/financeDemoRuntime';
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,13 +14,11 @@ export interface OnboardingRow {
 }
 
 export function useOnboardingState() {
-  const demo = useFinanceDemo();
   const { user, isOwner } = useAuth();
   const [row, setRow] = useState<OnboardingRow | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const load = useCallback(async () => {
-    if (demo.active || isFinanceDemoActive()) return;
     if (!user?.id) { setRow(null); setIsLoading(false); return; }
     setIsLoading(true);
     const { data } = await supabase
@@ -30,15 +26,14 @@ export function useOnboardingState() {
       .select('*')
       .eq('user_id', user.id)
       .maybeSingle();
-    if (isFinanceDemoActive()) return;
     setRow((data as OnboardingRow | null) ?? null);
     setIsLoading(false);
-  }, [demo.active, user?.id]);
+  }, [user?.id]);
 
   useEffect(() => { load(); }, [load]);
 
   const upsert = useCallback(async (patch: Partial<OnboardingRow>) => {
-    if (!user?.id || isFinanceDemoActive()) return;
+    if (!user?.id) return;
     const next: OnboardingRow = {
       user_id: user.id,
       current_step: row?.current_step ?? null,
@@ -52,5 +47,5 @@ export function useOnboardingState() {
     await supabase.from('user_onboarding').upsert(next, { onConflict: 'user_id' });
   }, [user?.id, row]);
 
-  return { row, isLoading: demo.active || isLoading, isOwner, reload: load, upsert };
+  return { row, isLoading, isOwner, reload: load, upsert };
 }

@@ -436,7 +436,7 @@ export const MiNegocioPanel = forwardRef<MiNegocioPanelHandle, MiNegocioPanelPro
       {/* Tabs */}
       {(showGeneralTab || visibleSucursalesActivas.length > 0) && activeTab && (
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-          <TabsList variant="underline" className="mb-6">
+          <TabsList variant="underline" className="mb-6 flex-wrap">
             {showGeneralTab && (
               <TabsTrigger value={GENERAL_TAB} variant="underline" data-onboarding-id="general-tab">
                 <Settings className="h-4 w-4" />
@@ -446,17 +446,19 @@ export const MiNegocioPanel = forwardRef<MiNegocioPanelHandle, MiNegocioPanelPro
             {visibleSucursalesActivas.length > 0 && showGeneralTab && (
               <div className="h-5 w-px bg-border shrink-0" aria-hidden="true" />
             )}
-            {visibleSucursalesActivas.map((s, idx) => (
-              <TabsTrigger
-                key={s.id}
-                value={s.id}
-                variant="underline"
-                data-onboarding-id={idx === 0 ? 'sucursal-tab' : undefined}
-              >
-                <Building2 className="h-4 w-4" />
-                {s.nombre}
-              </TabsTrigger>
-            ))}
+            <div className="flex items-center gap-4 overflow-x-auto scrollbar-hide max-w-full">
+              {visibleSucursalesActivas.map((s, idx) => (
+                <TabsTrigger
+                  key={s.id}
+                  value={s.id}
+                  variant="underline"
+                  data-onboarding-id={idx === 0 ? 'sucursal-tab' : undefined}
+                >
+                  <Building2 className="h-4 w-4" />
+                  {s.nombre}
+                </TabsTrigger>
+              ))}
+            </div>
           </TabsList>
 
           {showGeneralTab && (

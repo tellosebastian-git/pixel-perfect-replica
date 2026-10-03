@@ -1,5 +1,3 @@
-import { useFinanceDemo } from '@/contexts/FinanceDemoContext';
-import type { OperationalReadOptions } from '@/hooks/useOperationalAccess';
 import { useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { startOfMonth, endOfMonth, subMonths, format } from 'date-fns';
@@ -48,15 +46,11 @@ const EMPTY_BUNDLE: PagoMetodoBundle = {
 export function usePagoMetodoData(
   organizationId: string | undefined,
   currentSucursal: Sucursal | null,
-  options: OperationalReadOptions = {},
 ) {
-  const demo = useFinanceDemo();
-  const enabled = options.enabled !== false && !demo.active;
   const contextKey = `${organizationId ?? 'none'}::${currentSucursal?.id ?? 'all'}`;
 
   const readState = useReadState<PagoMetodoBundle>({
     contextKey,
-    enabled,
     errorMessage: 'No pudimos cargar los métodos de pago.',
     staleErrorMessage: 'No pudimos actualizar los métodos de pago.',
     surfaceId: `estadisticas-pago-metodo:${organizationId ?? 'none'}`,
@@ -160,8 +154,6 @@ export function usePagoMetodoData(
   }, [organizationId, fetchAll]);
 
   const bundle = readState.data ?? EMPTY_BUNDLE;
-
-  if (demo.active) return { montosMesActual: demo.data.montosMesActual, montosMesAnterior: demo.data.montosMesAnterior, datosIncompletos: false, isLoading: false, phase: 'ready' as ReadPhase, error: null, retry: () => {} };
 
   return {
     montosMesActual: bundle.montosMesActual,

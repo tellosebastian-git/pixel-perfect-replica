@@ -1,5 +1,3 @@
-import { isFinanceDemoActive, runFinanceWrite } from '@/lib/financeDemoRuntime';
-import { useFinanceDemo } from '@/contexts/FinanceDemoContext';
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -20,9 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { RecordRow } from '@/components/ui/RecordRow';
-import { MetricGroup } from '@/components/ui/MetricGroup';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useDelayedVisible } from '@/hooks/useDelayedVisible';
 import { DrawerForm } from '@/components/ui/drawer-form';
@@ -116,7 +112,6 @@ const getGastoFormDefaults = (): GastoFormValues => ({
 });
 
 export function GastosPanel() {
-  const demo = useFinanceDemo();
   const { gastos, isLoading, selectedMonth, setSelectedMonth, addGasto, anularGasto, totalPeriodo, setSyncRecurrentes } = useGastos();
   const showSkeleton = useDelayedVisible(isLoading);
   const requirePinForAction = useRequirePinForAction();
@@ -131,16 +126,16 @@ export function GastosPanel() {
 
   const handleUnlockGastosView = async () => {
     const gate = await requirePinForAction('ver_gastos', currentSucursal?.id ?? null);
-    if (!gate.ok || isFinanceDemoActive()) return;
+    if (!gate.ok) return;
     setGastosViewUnlocked(true);
     // Notificar visualización (solo cuenta de sucursal; dedupe horario en SQL).
     if (isSucursalAccount && currentSucursal?.id) {
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await runFinanceWrite(async () => (supabase as any).rpc('notif_emit_view_event', {
+        await (supabase as any).rpc('notif_emit_view_event', {
           _module: 'gastos',
           _sucursal_id: currentSucursal.id,
-        }));
+        });
       } catch (e) { console.warn('[notif] view event error', e); }
     }
   };
@@ -189,7 +184,6 @@ export function GastosPanel() {
   const closeForm = () => setIsFormOpen(false);
 
   const onSubmit = async (values: GastoFormValues) => {
-    if (isFinanceDemoActive()) return;
     if (values.esRecurrente && values.tipoCosto === 'fijo') {
       // Create recurring template
       const success = await addRecurrente({
@@ -208,7 +202,7 @@ export function GastosPanel() {
     } else {
       // Normal single gasto
       const gate = await requirePinForAction('registrar_gasto', currentSucursal?.id ?? null);
-      if (!gate.ok || isFinanceDemoActive()) return;
+      if (!gate.ok) return;
       const success = await addGasto({
         categoria: values.categoria,
         monto: parseFloat(values.monto),
@@ -229,7 +223,7 @@ export function GastosPanel() {
         subtitle="Costos fijos, variables y recurrentes del negocio."
         className="pl-0"
         actions={(
-          <Button size="sm" disabled={demo.active} onClick={() => setIsFormOpen(true)}>
+          <Button size="sm" onClick={() => setIsFormOpen(true)}>
             <Plus className="h-4 w-4 mr-1" /> Registrar gasto
           </Button>
         )}
@@ -243,17 +237,17 @@ export function GastosPanel() {
         isDirty={form.formState.isDirty}
         footer={
           <div className="flex w-full justify-end gap-2">
-            <Button variant="outline" onClick={closeForm} disabled={demo.active || form.formState.isSubmitting}>
+            <Button variant="outline" onClick={closeForm} disabled={form.formState.isSubmitting}>
               Cancelar
             </Button>
-            <Button type="submit" form="gasto-form" disabled={demo.active || form.formState.isSubmitting}>
+            <Button type="submit" form="gasto-form" disabled={form.formState.isSubmitting}>
               {form.formState.isSubmitting ? 'Registrando...' : esRecurrenteWatch ? 'Crear gasto recurrente' : 'Registrar gasto'}
             </Button>
           </div>
         }
       >
         <Form {...form}>
-          <form id="gasto-form" onSubmit={form.handleSubmit(values => runFinanceWrite(() => onSubmit(values)).then(() => {}))} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <form id="gasto-form" onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField
               control={form.control}
               name="tipoCosto"
@@ -385,7 +379,6 @@ export function GastosPanel() {
       {/* Gastos recurrentes list */}
       <GastosRecurrentesList
         recurrentes={recurrentes}
-        readOnly={demo.active}
         onToggle={toggleRecurrente}
         onDelete={deleteRecurrente}
       />
@@ -448,73 +441,72 @@ export function GastosPanel() {
           ) : gastos.length === 0 ? (
             <p className="text-muted-foreground text-center py-4">No hay gastos en este período</p>
           ) : (
-            // Registro (Tipo A): cada fila es un gasto independiente con acción propia
-            // (anular) — no una comparación de columnas (DESIGN.md → Registro vs. Tabla
-            // comparativa). 6 columnas no lo convierten en Tabla comparativa.
-            <div className="space-y-3">
-              <div className="space-y-2">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Fecha</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Categoría</TableHead>
+                  <TableHead>Descripción</TableHead>
+                  <TableHead className="text-right">Monto</TableHead>
+                  <TableHead className="w-10"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {gastos.map((g) => {
                   const esAutomatico = !!(g.pago_deuda_id || g.pago_sueldo_id || g.gasto_recurrente_id || g.inversion_id);
                   return (
-                    <div key={g.id} className="rounded-lg border p-4">
-                      <RecordRow
-                        identity={
-                          <div className="min-w-0 space-y-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-sm text-muted-foreground whitespace-nowrap">
-                                {g.Fecha ? format(new Date(g.Fecha), 'dd/MM/yyyy') : '-'}
-                              </span>
-                              <span className="font-medium">{g.Categoria || '-'}</span>
-                              {g.tipo_costo && (
-                                <Badge variant={TIPO_BADGE_VARIANT[g.tipo_costo]}>
-                                  {TIPO_LABELS[g.tipo_costo]}
-                                </Badge>
-                              )}
-                              {esAutomatico && (
-                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                  Automático
-                                </Badge>
-                              )}
-                            </div>
-                            {g.Descripcion && (
-                              <p className="text-xs text-muted-foreground">{g.Descripcion}</p>
-                            )}
-                          </div>
-                        }
-                        actions={
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive disabled:opacity-30"
-                            disabled={demo.active || esAutomatico}
-                            title={esAutomatico ? 'Este gasto se generó automáticamente y no se puede editar desde acá' : undefined}
-                            onClick={() => setAnularState({ id: g.id, motivo: '' })}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        }
-                        metrics={
-                          <MetricGroup size="metric">
-                            <div>
-                              <p className="text-xs text-muted-foreground">Monto</p>
-                              <p className="font-medium tabular-nums whitespace-nowrap">
-                                ${(g.Monto || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                              </p>
-                            </div>
-                          </MetricGroup>
-                        }
-                      />
-                    </div>
+                    <TableRow key={g.id}>
+                      <TableCell className="whitespace-nowrap">
+                        {g.Fecha ? format(new Date(g.Fecha), 'dd/MM/yyyy') : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {g.tipo_costo ? (
+                          <Badge variant={TIPO_BADGE_VARIANT[g.tipo_costo]}>
+                            {TIPO_LABELS[g.tipo_costo]}
+                          </Badge>
+                        ) : '-'}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span>{g.Categoria || '-'}</span>
+                          {esAutomatico && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                              Automático
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="max-w-[200px] truncate">{g.Descripcion || '-'}</TableCell>
+                      <TableCell className="text-right font-medium">
+                        ${(g.Monto || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive disabled:opacity-30"
+                          disabled={esAutomatico}
+                          title={esAutomatico ? 'Este gasto se generó automáticamente y no se puede editar desde acá' : undefined}
+                          onClick={() => setAnularState({ id: g.id, motivo: '' })}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 px-4 py-3">
-                <span className="font-semibold">Total del período</span>
-                <span className="font-bold tabular-nums whitespace-nowrap">
-                  ${totalPeriodo.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                </span>
-              </div>
-            </div>
+              </TableBody>
+              <TableFooter>
+                <TableRow>
+                  <TableCell colSpan={4} className="font-semibold">Total del período</TableCell>
+                  <TableCell className="text-right font-bold">
+                    ${totalPeriodo.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                  </TableCell>
+                  <TableCell />
+                </TableRow>
+              </TableFooter>
+            </Table>
           )}
         </CardContent>
       </Card>
@@ -575,7 +567,7 @@ export function GastosPanel() {
                 setAnulando(true);
                 try {
                   const gate = await requirePinForAction('anular_gasto', currentSucursal?.id ?? null);
-                  if (!gate.ok || isFinanceDemoActive()) return;
+                  if (!gate.ok) return;
                   const ok = await anularGasto(anularState.id, anularState.motivo, {
                     validatedByUserId: gate.validatedByUserId ?? null,
                   });

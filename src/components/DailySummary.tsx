@@ -24,7 +24,6 @@ import { TransactionDetailDrawer } from './TransactionDetailDrawer';
 
 import { Badge } from '@/components/ui/badge';
 import { StatusPill } from '@/components/ui/StatusPill';
-import { MetricGroup } from '@/components/ui/MetricGroup';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useOrganization } from '@/contexts/OrganizationContext';
@@ -537,61 +536,59 @@ export function DailySummary({ summary, barbers, services, lines, selectedDate, 
       </div>
 
       {/* General Summary Cards */}
-      <div className="space-y-3">
-        <Card className="bg-primary border-primary shadow-sm rounded-2xl">
+      <div className="grid gap-3 grid-cols-3 md:grid-cols-4">
+        <Card className="col-span-3 md:col-span-1 bg-primary border-primary shadow-sm rounded-2xl">
           <CardContent className="p-4 md:pt-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-primary-foreground/70">Total General</p>
-                <p className="text-3xl font-bold text-primary-foreground tabular-nums whitespace-nowrap">${summary.totalCobrado.toLocaleString()}</p>
+                <p className="text-3xl font-bold text-primary-foreground">${summary.totalCobrado.toLocaleString()}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <MetricGroup size="kpi">
-          <Card className="border border-border bg-card rounded-2xl shadow-sm">
-            <CardContent className="p-3 md:pt-6">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-xs md:text-sm text-muted-foreground">Efectivo</p>
-                  <p className="text-base md:text-xl font-bold text-success tabular-nums whitespace-nowrap">${summary.totalEfectivoCobrado.toLocaleString()}</p>
-                </div>
-                <div className="w-9 h-9 rounded-lg bg-success/10 flex items-center justify-center shrink-0">
-                  <Banknote className="h-4 w-4 text-success" />
-                </div>
+        <Card className="col-span-1 border border-border bg-card rounded-2xl shadow-sm">
+          <CardContent className="p-3 md:pt-6">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-xs md:text-sm text-muted-foreground">Efectivo</p>
+                <p className="text-base md:text-xl font-bold text-success">${summary.totalEfectivoCobrado.toLocaleString()}</p>
               </div>
-            </CardContent>
-          </Card>
+              <div className="w-9 h-9 rounded-lg bg-success/10 flex items-center justify-center shrink-0">
+                <Banknote className="h-4 w-4 text-success" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-          <Card className="border border-border bg-card rounded-2xl shadow-sm">
-            <CardContent className="p-3 md:pt-6">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-xs md:text-sm text-muted-foreground">Digital</p>
-                  <p className="text-base md:text-xl font-bold text-status-info-foreground tabular-nums whitespace-nowrap">${summary.totalDigitalCobrado.toLocaleString()}</p>
-                </div>
-                <div className="w-9 h-9 rounded-lg bg-status-info-bg flex items-center justify-center shrink-0">
-                  <CreditCard className="h-4 w-4 text-status-info" />
-                </div>
+        <Card className="col-span-1 border border-border bg-card rounded-2xl shadow-sm">
+          <CardContent className="p-3 md:pt-6">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-xs md:text-sm text-muted-foreground">Digital</p>
+                <p className="text-base md:text-xl font-bold text-status-info-foreground">${summary.totalDigitalCobrado.toLocaleString()}</p>
               </div>
-            </CardContent>
-          </Card>
+              <div className="w-9 h-9 rounded-lg bg-status-info-bg flex items-center justify-center shrink-0">
+                <CreditCard className="h-4 w-4 text-status-info" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-          <Card className="border border-border bg-card rounded-2xl shadow-sm">
-            <CardContent className="p-3 md:pt-6">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-xs md:text-sm text-muted-foreground">Servicios</p>
-                  <p className="text-base md:text-xl font-bold text-status-purple tabular-nums whitespace-nowrap">{summary.count}</p>
-                </div>
-                <div className="w-9 h-9 rounded-lg bg-status-purple-bg flex items-center justify-center shrink-0">
-                  <Receipt className="h-4 w-4 text-status-purple" />
-                </div>
+        <Card className="col-span-1 border border-border bg-card rounded-2xl shadow-sm">
+          <CardContent className="p-3 md:pt-6">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-xs md:text-sm text-muted-foreground">Servicios</p>
+                <p className="text-base md:text-xl font-bold text-status-purple">{summary.count}</p>
               </div>
-            </CardContent>
-          </Card>
-        </MetricGroup>
+              <div className="w-9 h-9 rounded-lg bg-status-purple-bg flex items-center justify-center shrink-0">
+                <Receipt className="h-4 w-4 text-status-purple" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Per-Barber Summaries */}
@@ -976,22 +973,22 @@ export function DailySummary({ summary, barbers, services, lines, selectedDate, 
 
           <div className="space-y-6 py-4">
             {/* Summary Cards */}
-            <MetricGroup size="kpi">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
               <div className="p-4 rounded-lg bg-success/10 border border-success/20">
                 <p className="text-sm text-muted-foreground">Efectivo</p>
-                <p className="text-xl font-bold text-success tabular-nums whitespace-nowrap">${closingBarber?.totalEfectivo.toLocaleString()}</p>
+                <p className="text-xl font-bold text-success">${closingBarber?.totalEfectivo.toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground mt-1">{barberTransactions.efectivo.length} servicios</p>
               </div>
               <div className="p-4 rounded-lg bg-status-info-bg border border-status-info/20">
                 <p className="text-sm text-muted-foreground">Digital</p>
-                <p className="text-xl font-bold text-status-info-foreground tabular-nums whitespace-nowrap">${closingBarber?.totalMercadoPago.toLocaleString()}</p>
+                <p className="text-xl font-bold text-status-info-foreground">${closingBarber?.totalMercadoPago.toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground mt-1">{barberTransactions.digital.length} servicios</p>
               </div>
               <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
                 <p className="text-sm text-muted-foreground">Comisión ({closingBarber?.commissionPct}%)</p>
-                <p className="text-xl font-bold text-primary tabular-nums whitespace-nowrap">${closingBarber?.commissionAmount.toLocaleString()}</p>
+                <p className="text-xl font-bold text-primary">${closingBarber?.commissionAmount.toLocaleString()}</p>
               </div>
-            </MetricGroup>
+            </div>
 
             {/* Efectivo Transactions */}
             {barberTransactions.efectivo.length > 0 && (

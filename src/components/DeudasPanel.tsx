@@ -1,5 +1,3 @@
-import { runFinanceWrite } from '@/lib/financeDemoRuntime';
-import { useFinanceDemo } from '@/contexts/FinanceDemoContext';
 import { useEffect, useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -60,7 +58,6 @@ const getDeudaFormDefaults = (): DeudaFormValues => ({
 });
 
 export function DeudasPanel() {
-  const demo = useFinanceDemo();
   const { deudas, isLoading, addDeuda, registrarPago, deleteDeuda, fetchPagosDeuda } = useDeudas();
   const showSkeleton = useDelayedVisible(isLoading);
   const { inversiones } = useInversiones();
@@ -120,7 +117,6 @@ export function DeudasPanel() {
     <DeudaCard
       key={d.id}
       deuda={d}
-      readOnly={demo.active}
       inversionNombre={getInversionNombre(d.inversion_id)}
       fetchPagosDeuda={fetchPagosDeuda}
       onRegistrarPago={() => setDeudaAPagar(d)}
@@ -137,7 +133,7 @@ export function DeudasPanel() {
         subtitle="Compromisos financieros pendientes."
         className="pl-0"
         actions={(
-          <Button size="sm" disabled={demo.active} onClick={() => setIsFormOpen(true)}>
+          <Button size="sm" onClick={() => setIsFormOpen(true)}>
             <Plus className="h-4 w-4 mr-1" /> Nueva
           </Button>
         )}
@@ -151,17 +147,17 @@ export function DeudasPanel() {
         isDirty={form.formState.isDirty}
         footer={
           <div className="flex w-full justify-end gap-2">
-            <Button variant="outline" onClick={() => setIsFormOpen(false)} disabled={demo.active || form.formState.isSubmitting}>
+            <Button variant="outline" onClick={() => setIsFormOpen(false)} disabled={form.formState.isSubmitting}>
               Cancelar
             </Button>
-            <Button type="submit" form="deuda-form" disabled={demo.active || form.formState.isSubmitting}>
+            <Button type="submit" form="deuda-form" disabled={form.formState.isSubmitting}>
               {form.formState.isSubmitting ? 'Guardando...' : 'Guardar'}
             </Button>
           </div>
         }
       >
         <Form {...form}>
-          <form id="deuda-form" onSubmit={form.handleSubmit(values => runFinanceWrite(() => onSubmit(values)).then(() => {}))} className="space-y-4">
+          <form id="deuda-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -477,14 +473,12 @@ function RegistrarPagoDialog({
 
 function DeudaCard({
   deuda,
-  readOnly = false,
   inversionNombre,
   fetchPagosDeuda,
   onRegistrarPago,
   onEliminar,
 }: {
   deuda: Deuda;
-  readOnly?: boolean;
   inversionNombre: string | null;
   fetchPagosDeuda: (id: string) => Promise<PagoDeuda[]>;
   onRegistrarPago: () => void;
@@ -565,7 +559,7 @@ function DeudaCard({
 
           <div className="flex items-center gap-1">
             {!esPagada && (
-              <Button size="sm" variant="outline" disabled={readOnly} onClick={onRegistrarPago}>
+              <Button size="sm" variant="outline" onClick={onRegistrarPago}>
                 <CreditCard className="h-3 w-3 mr-1" /> Registrar pago
               </Button>
             )}
@@ -573,8 +567,6 @@ function DeudaCard({
               variant="ghost"
               size="icon"
               className="text-destructive h-8 w-8"
-              disabled={readOnly}
-              aria-label="Eliminar deuda"
               onClick={onEliminar}
             >
               <Trash2 className="h-4 w-4" />

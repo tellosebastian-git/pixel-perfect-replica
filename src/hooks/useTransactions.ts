@@ -1,5 +1,3 @@
-import { useFinanceDemo } from '@/contexts/FinanceDemoContext';
-import { useOperationalAccess, type OperationalReadOptions } from '@/hooks/useOperationalAccess';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Transaction, PaymentMethod } from '@/types/barbershop';
 import { supabase } from '@/integrations/supabase/client';
@@ -64,10 +62,7 @@ interface VentaExtraInsert {
   cantidad: number;
 }
 
-export function useTransactions(options: OperationalReadOptions = {}) {
-  const demo = useFinanceDemo();
-  const enabled = options.enabled !== false && !demo.active;
-  const access = useOperationalAccess(enabled);
+export function useTransactions() {
   const { organization } = useOrganization();
   const { currentSucursal, isAllMode } = useSucursal();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -76,8 +71,6 @@ export function useTransactions(options: OperationalReadOptions = {}) {
 
   // Cargar ventas de una fecha específica desde Supabase
   const loadTransactionsByDate = useCallback(async (date: Date) => {
-    if (!enabled || !access.allowed()) return;
-    const request = access.start();
     setIsLoading(true);
     
     // Usar funciones de fecha consistentes con timezone de la organización
@@ -97,19 +90,15 @@ export function useTransactions(options: OperationalReadOptions = {}) {
       query = query.eq('sucursal_id', currentSucursal.id);
     }
 
-    if (!request.current()) { request.finish(); return; }
-    const { data: ventas, error } = await query.abortSignal(request.signal);
-    if (!request.current()) { request.finish(); return; }
+    const { data: ventas, error } = await query;
 
     if (error) {
-      request.finish();
       console.error('Error loading ventas:', error);
       setIsLoading(false);
       return;
     }
 
     if (!ventas || ventas.length === 0) {
-      request.finish();
       setTransactions([]);
       setIsLoading(false);
       return;
@@ -117,13 +106,11 @@ export function useTransactions(options: OperationalReadOptions = {}) {
 
     // Cargar extras, pagos y productos de cada venta
     const ventaIds = ventas.map(v => v.id);
-    if (!request.current()) { request.finish(); return; }
     const [extrasRes, pagosRes, productosRes] = await Promise.all([
-      supabase.from('venta_extra').select('*').in('venta_id', ventaIds).abortSignal(request.signal),
-      supabase.from('venta_pagos').select('*').in('venta_id', ventaIds).abortSignal(request.signal).order('orden', { ascending: true }),
-      supabase.from('venta_producto').select('*').in('venta_id', ventaIds).abortSignal(request.signal),
+      supabase.from('venta_extra').select('*').in('venta_id', ventaIds),
+      supabase.from('venta_pagos').select('*').in('venta_id', ventaIds).order('orden', { ascending: true }),
+      supabase.from('venta_producto').select('*').in('venta_id', ventaIds),
     ]);
-    if (!request.current()) { request.finish(); return; }
     const ventaExtras = extrasRes.data;
     const ventaPagos = pagosRes.data;
     const ventaProductos = productosRes.data;
@@ -225,11 +212,9 @@ export function useTransactions(options: OperationalReadOptions = {}) {
       };
     });
 
-    if (!request.current()) { request.finish(); return; }
     setTransactions(txs);
-    request.finish();
     setIsLoading(false);
-  }, [enabled, access, currentSucursal, organization?.timezone]);
+  }, [currentSucursal, organization?.timezone]);
 
   useEffect(() => {
     loadTransactionsByDate(selectedDate);

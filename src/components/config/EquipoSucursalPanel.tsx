@@ -624,11 +624,8 @@ export function EquipoSucursalPanel({ sucursalId, sucursalNombre, organizationId
             </div>
             <div className="flex items-center gap-3 px-3 py-2.5">
               <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span className="shrink-0 text-sm text-muted-foreground">Email</span>
-              <span
-                className="min-w-0 flex-1 break-words text-right text-sm text-foreground"
-                title={drawerBarbero?.access_email ?? undefined}
-              >
+              <span className="flex-1 text-sm text-muted-foreground">Email</span>
+              <span className="max-w-[180px] truncate text-sm text-foreground">
                 {drawerBarbero?.access_email ?? '—'}
               </span>
             </div>
@@ -787,12 +784,12 @@ function TemporalSheet({ open, onOpenChange, organizationId, sucursalId, initial
               </FormItem>
             )}
           />
-          <div className="flex flex-wrap gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <FormField
               control={form.control}
               name="fechaInicio"
               render={({ field }) => (
-                <FormItem className="min-w-[140px] flex-1">
+                <FormItem>
                   <FormLabel>Desde</FormLabel>
                   <FormControl>
                     <Input type="date" {...field} />
@@ -805,7 +802,7 @@ function TemporalSheet({ open, onOpenChange, organizationId, sucursalId, initial
               control={form.control}
               name="fechaFin"
               render={({ field }) => (
-                <FormItem className="min-w-[140px] flex-1">
+                <FormItem>
                   <FormLabel>Hasta</FormLabel>
                   <FormControl>
                     <Input type="date" {...field} min={fechaInicioWatch} />
@@ -940,12 +937,12 @@ function RecurrenteSheet({ open, onOpenChange, organizationId, sucursalId, initi
               </FormItem>
             )}
           />
-          <div className="flex flex-wrap gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <FormField
               control={form.control}
               name="fechaInicio"
               render={({ field }) => (
-                <FormItem className="min-w-[140px] flex-1">
+                <FormItem>
                   <FormLabel className="text-xs text-muted-foreground">Desde (opcional)</FormLabel>
                   <FormControl>
                     <Input type="date" {...field} />
@@ -958,7 +955,7 @@ function RecurrenteSheet({ open, onOpenChange, organizationId, sucursalId, initi
               control={form.control}
               name="fechaFin"
               render={({ field }) => (
-                <FormItem className="min-w-[140px] flex-1">
+                <FormItem>
                   <FormLabel className="text-xs text-muted-foreground">Hasta (opcional)</FormLabel>
                   <FormControl>
                     <Input type="date" {...field} min={fechaInicioWatch || undefined} />

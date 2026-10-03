@@ -1,6 +1,3 @@
-import { useFinanceDemo } from '@/contexts/FinanceDemoContext';
-import { FinanceDemoControl } from '@/components/financeDemo/FinanceDemoControl';
-import { Badge } from '@/components/ui/badge';
 import { Receipt, TrendingUp, Landmark, BarChart3, Wallet, Lock } from 'lucide-react';
 import { GastosPanel } from '@/components/GastosPanel';
 import { InversionesPanel } from '@/components/InversionesPanel';
@@ -68,10 +65,6 @@ function LockedFinance({
 
 export function FinanzasPanel({ barbers, currentPlan, onNavigateToBilling, onNavigateToHorarios }: FinanzasPanelProps) {
   const { isSucursalAccount } = useAuth();
-  const demo = useFinanceDemo();
-  const sourceKey = demo.active ? `demo:${demo.branch ?? 'all'}` : 'real';
-  const displayBarbers = demo.active ? demo.data.barbers : barbers;
-  const demoIndicator = demo.active ? <Badge variant="secondary" role="status" className="whitespace-normal">Datos ficticios · Solo lectura</Badge> : undefined;
 
   const canUseStatistics = planAllowsFeature(currentPlan, 'finance.statistics');
   const canUseSalaries = planAllowsFeature(currentPlan, 'finance.salaries');
@@ -90,9 +83,9 @@ export function FinanzasPanel({ barbers, currentPlan, onNavigateToBilling, onNav
   if (isSucursalAccount) {
     return (
       <div className="animate-fade-in">
-        <PageHeader title="Finanzas" icon={Wallet} subtitle="Gestioná ingresos, gastos, sueldos e inversiones del negocio." actions={demoIndicator} />
+        <PageHeader title="Finanzas" icon={Wallet} subtitle="Gestioná ingresos, gastos, sueldos e inversiones del negocio." />
         <Tabs defaultValue={defaultTab}>
-          <TabsList variant="underline" className="mb-6">
+          <TabsList variant="underline" className="mb-6 flex-wrap">
             <TabsTrigger value="sueldos" variant="underline">
               <Wallet className="h-4 w-4" />
               Sueldos
@@ -107,7 +100,7 @@ export function FinanzasPanel({ barbers, currentPlan, onNavigateToBilling, onNav
 
           <TabsContent value="sueldos">
             {canUseSalaries ? (
-              <SueldosPanel key={sourceKey} barbers={displayBarbers} />
+              <SueldosPanel barbers={barbers} />
             ) : (
               <LockedFinance
                 feature="finance.salaries"
@@ -120,7 +113,7 @@ export function FinanzasPanel({ barbers, currentPlan, onNavigateToBilling, onNav
           </TabsContent>
           <TabsContent value="gastos">
             {canUseExpenses ? (
-              <GastosPanel key={sourceKey} />
+              <GastosPanel />
             ) : (
               <LockedFinance
                 feature="finance.expenses"
@@ -138,9 +131,9 @@ export function FinanzasPanel({ barbers, currentPlan, onNavigateToBilling, onNav
 
   return (
     <div className="animate-fade-in">
-      <PageHeader title="Finanzas" icon={Wallet} subtitle="Gestioná ingresos, gastos, sueldos e inversiones del negocio." actions={demoIndicator} />
+      <PageHeader title="Finanzas" icon={Wallet} subtitle="Gestioná ingresos, gastos, sueldos e inversiones del negocio." />
       <Tabs defaultValue={defaultTab}>
-        <TabsList variant="underline" className="mb-6">
+        <TabsList variant="underline" className="mb-6 flex-wrap">
           <TabsTrigger value="estadisticas" variant="underline">
             <BarChart3 className="h-4 w-4" />
             Estadisticas
@@ -170,10 +163,7 @@ export function FinanzasPanel({ barbers, currentPlan, onNavigateToBilling, onNav
 
         <TabsContent value="estadisticas">
           {canUseStatistics ? (
-            <>
-              <EstadisticasPanel key={sourceKey} onNavigateToHorarios={onNavigateToHorarios} />
-              <FinanceDemoControl />
-            </>
+            <EstadisticasPanel onNavigateToHorarios={onNavigateToHorarios} />
           ) : (
             <LockedFinance
               feature="finance.statistics"
@@ -187,7 +177,7 @@ export function FinanzasPanel({ barbers, currentPlan, onNavigateToBilling, onNav
         </TabsContent>
         <TabsContent value="sueldos">
           {canUseSalaries ? (
-            <SueldosPanel key={sourceKey} barbers={displayBarbers} />
+            <SueldosPanel barbers={barbers} />
           ) : (
             <LockedFinance
               feature="finance.salaries"
@@ -200,7 +190,7 @@ export function FinanzasPanel({ barbers, currentPlan, onNavigateToBilling, onNav
         </TabsContent>
         <TabsContent value="gastos">
           {canUseExpenses ? (
-            <GastosPanel key={sourceKey} />
+            <GastosPanel />
           ) : (
             <LockedFinance
               feature="finance.expenses"
@@ -213,7 +203,7 @@ export function FinanzasPanel({ barbers, currentPlan, onNavigateToBilling, onNav
         </TabsContent>
         <TabsContent value="inversiones">
           {canUseInvestments ? (
-            <InversionesPanel key={sourceKey} />
+            <InversionesPanel />
           ) : (
             <LockedFinance
               feature="finance.investments"
@@ -226,7 +216,7 @@ export function FinanzasPanel({ barbers, currentPlan, onNavigateToBilling, onNav
         </TabsContent>
         <TabsContent value="deudas">
           {canUseDebts ? (
-            <DeudasPanel key={sourceKey} />
+            <DeudasPanel />
           ) : (
             <LockedFinance
               feature="finance.debts"

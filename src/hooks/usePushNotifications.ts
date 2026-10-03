@@ -1,4 +1,3 @@
-import { isFinanceDemoActive } from '@/lib/financeDemoRuntime';
 import { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
@@ -15,7 +14,6 @@ export function usePushNotifications(
     let isMounted = true;
 
     const saveToken = async (token: string) => {
-      if (!isMounted || isFinanceDemoActive()) return;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any)
         .from('push_tokens')
@@ -50,7 +48,7 @@ export function usePushNotifications(
     const setup = async () => {
       try {
         const permStatus = await PushNotifications.requestPermissions();
-        if (!isMounted || isFinanceDemoActive() || permStatus.receive !== 'granted') return;
+        if (permStatus.receive !== 'granted') return;
         await PushNotifications.register();
       } catch (err) {
         console.error('[usePushNotifications] error al inicializar:', err);

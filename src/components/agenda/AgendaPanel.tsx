@@ -241,31 +241,17 @@ export function AgendaPanel({ sucursalId, organizationId, sucursalTimezone, barb
   };
 
 
-  // titleLabel: representación completa (desktop/tablet). titleLabelShort:
-  // misma fecha, abreviada — necesaria solo en "day" ("miércoles 24 de
-  // septiembre de 2026" no entra en el toolbar angosto sin cortarse); 3
-  // días/semana ya son cortas por sí mismas, comparten el mismo string.
-  const { titleLabel, titleLabelShort } = useMemo(() => {
-    if (view === 'day') {
-      return {
-        titleLabel: format(date, "EEEE dd 'de' MMMM yyyy", { locale: es }),
-        titleLabelShort: format(date, 'EEE dd MMM yyyy', { locale: es }),
-      };
-    }
-    const label = `${format(fromDate, 'dd MMM', { locale: es })} – ${format(toDate, 'dd MMM yyyy', { locale: es })}`;
-    return { titleLabel: label, titleLabelShort: label };
+  const titleLabel = useMemo(() => {
+    if (view === 'day') return format(date, "EEEE dd 'de' MMMM yyyy", { locale: es });
+    if (view === '3days') return `${format(fromDate, 'dd MMM', { locale: es })} – ${format(toDate, 'dd MMM yyyy', { locale: es })}`;
+    return `${format(fromDate, 'dd MMM', { locale: es })} – ${format(toDate, 'dd MMM yyyy', { locale: es })}`;
   }, [view, date, fromDate, toDate]);
 
   return (
     <div className="border rounded-lg overflow-clip">
-      {/* Toolbar — prioridades: contexto actual (fecha) > acción principal
-          (Añadir) > navegación (Hoy/prev/next/vista) > filtros (zoom) >
-          acciones secundarias. Ningún grupo se recorta: cada uno puede
-          envolver internamente o pasar a una segunda línea (flex-wrap en el
-          contenedor y en cada grupo); la fecha usa una representación más
-          corta en vez de cortarse a la mitad. */}
+      {/* Toolbar */}
       <div className="flex items-center justify-between gap-2 flex-wrap border-b bg-muted/30 px-4 py-2.5">
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setDate(new Date())}>Hoy</Button>
           <div className="flex">
             <Button variant="outline" size="icon" className="h-9 w-9 rounded-r-none" onClick={handlePrev}>
@@ -279,8 +265,7 @@ export function AgendaPanel({ sucursalId, organizationId, sucursalTimezone, barb
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2">
                 <CalendarIcon className="h-4 w-4" />
-                <span className="capitalize hidden sm:inline">{titleLabel}</span>
-                <span className="capitalize sm:hidden">{titleLabelShort}</span>
+                <span className="capitalize">{titleLabel}</span>
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
@@ -294,7 +279,7 @@ export function AgendaPanel({ sucursalId, organizationId, sucursalTimezone, barb
           </Popover>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
           <ToggleGroup type="single" value={view} onValueChange={(v) => v && setView(v as ViewMode)} size="sm">
             <ToggleGroupItem value="day" className="text-xs px-3">Día</ToggleGroupItem>
             <ToggleGroupItem value="3days" className="text-xs px-3">3 días</ToggleGroupItem>

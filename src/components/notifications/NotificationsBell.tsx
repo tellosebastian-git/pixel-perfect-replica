@@ -11,7 +11,7 @@ import { useNotifications, type NotificationItem } from '@/hooks/useNotification
 import { useNotificationPreferences } from '@/hooks/useNotificationPreferences';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSucursal } from '@/contexts/SucursalContext';
-import { useWindowMode } from '@/hooks/use-window-mode';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { format, parseISO, subDays, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
@@ -105,10 +105,7 @@ function hasMeaningfulMetadata(n: NotificationItem): boolean {
 export function NotificationsBell({ collapsed, onNavigate }: NotificationsBellProps) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'unread' | 'read'>('unread');
-  // side/align son props de la API de posicionamiento de Radix — CSS no
-  // puede expresarlas, así que el componente lee el modo de ventana
-  // compartido (DESIGN.md → Layout) en vez de un breakpoint local.
-  const isCompact = useWindowMode() === 'compact';
+  const isMobile = useIsMobile();
   const { isOwner, isGeneralManager } = useAuth();
   const { sucursales } = useSucursal();
   const { scope } = useNotificationPreferences();
@@ -289,12 +286,12 @@ export function NotificationsBell({ collapsed, onNavigate }: NotificationsBellPr
                         </span>
                         {!isRead && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
                       </div>
-                      <p className={cn('text-sm break-words', isRead ? 'text-muted-foreground' : 'text-foreground')}>
+                      <p className={cn('text-sm truncate', isRead ? 'text-muted-foreground' : 'text-foreground')}>
                         {n.titulo}
                       </p>
                       {(() => {
                         const tSum = turnoSummary(n);
-                        if (tSum) return <p className="text-xs text-muted-foreground break-words">{tSum}</p>;
+                        if (tSum) return <p className="text-xs text-muted-foreground truncate">{tSum}</p>;
                         return null;
                       })()}
                       {fechaTxt && <p className="text-xs text-muted-foreground">{fechaTxt}</p>}
@@ -361,7 +358,7 @@ export function NotificationsBell({ collapsed, onNavigate }: NotificationsBellPr
             variant="ghost"
             className={cn(
               'group w-full h-auto justify-start gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-sidebar-foreground',
-              collapsed && 'hit-area-expand justify-center gap-0 px-2',
+              collapsed && 'justify-center gap-0 px-2',
             )}
             title={collapsed ? `Notificaciones${unreadCount ? ` (${badgeLabel})` : ''}` : undefined}
           >
@@ -382,11 +379,16 @@ export function NotificationsBell({ collapsed, onNavigate }: NotificationsBellPr
           </Button>
         </PopoverTrigger>
         <PopoverContent
-          side={isCompact ? 'bottom' : 'right'}
-          align={isCompact ? 'center' : 'end'}
+          side={isMobile ? 'bottom' : 'right'}
+          align={isMobile ? 'center' : 'end'}
           sideOffset={8}
           collisionPadding={12}
-          className="p-0 overflow-hidden flex flex-col w-[calc(100vw-24px)] max-w-[400px] max-h-[80vh] sm:w-[380px] sm:max-h-[520px]"
+          className={cn(
+            'p-0 overflow-hidden flex flex-col',
+            isMobile
+              ? 'w-[calc(100vw-24px)] max-w-[400px] max-h-[80vh]'
+              : 'w-[380px] max-h-[520px]',
+          )}
         >
           <Tabs value={tab} onValueChange={(v) => setTab(v as 'unread' | 'read')} className="flex flex-col flex-1 min-h-0">
             <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-popover sticky top-0 z-10">

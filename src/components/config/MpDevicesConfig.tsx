@@ -93,13 +93,8 @@ function DeviceNameEditor({
         <Button
           size="icon"
           variant="ghost"
-          // Siempre visible por defecto (todo pointer). Solo en dispositivos con hover
-          // real Y puntero fino (mouse/trackpad, no touch ni stylus coarse) se reduce
-          // hasta el hover de la fila — el ancho nunca decide esto, así no queda
-          // invisible en tablet táctil ≥640px. focus-visible ignora esa condición a
-          // propósito: si el botón recibe foco por teclado, debe verse siempre, nunca
-          // quedar enfocado pero invisible (aunque el dispositivo sí tenga hover fino).
-          className="h-7 w-7 shrink-0 opacity-100 [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+          // Always visible on touch devices; hover-only on pointer devices
+          className="h-7 w-7 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
           onClick={() => setEditing(true)}
         >
           <Pencil className="h-3 w-3" />

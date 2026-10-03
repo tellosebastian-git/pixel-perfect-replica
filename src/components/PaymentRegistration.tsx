@@ -1174,7 +1174,7 @@ export function PaymentRegistration({
                         <Package className="h-3.5 w-3.5 text-muted-foreground" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground break-words">{it.nombre}</p>
+                        <p className="text-sm font-medium text-foreground truncate">{it.nombre}</p>
                         <p className="text-xs text-muted-foreground">
                           {it.marca_nombre ? `${it.marca_nombre} · ` : ''}
                           {it.cantidad} × ${it.precio_unitario.toLocaleString('es-AR')}
@@ -1649,21 +1649,21 @@ export function PaymentRegistration({
                   if (!displayBarberName) return null;
                   return (
                     <div className="flex items-start justify-between gap-4">
-                      <span className="shrink-0 text-muted-foreground">Barbero</span>
-                      <span className="min-w-0 flex-1 break-words text-right font-medium">{displayBarberName}</span>
+                      <span className="text-muted-foreground">Barbero</span>
+                      <span className="shrink-0 text-right font-medium">{displayBarberName}</span>
                     </div>
                   );
                 })()}
                 {clienteSearch.selectedCliente && (
                   <div className="flex items-start justify-between gap-4">
-                    <span className="shrink-0 text-muted-foreground">Cliente</span>
-                    <span className="min-w-0 flex-1 break-words text-right font-medium">{clienteFullName(clienteSearch.selectedCliente)}</span>
+                    <span className="text-muted-foreground">Cliente</span>
+                    <span className="shrink-0 text-right font-medium">{clienteFullName(clienteSearch.selectedCliente)}</span>
                   </div>
                 )}
                 {service && (
                   <div className="flex items-start justify-between gap-4">
-                    <span className="shrink-0 text-muted-foreground">Servicio</span>
-                    <span className="min-w-0 flex-1 break-words text-right font-medium">{service.name}</span>
+                    <span className="text-muted-foreground">Servicio</span>
+                    <span className="shrink-0 text-right font-medium">{service.name}</span>
                   </div>
                 )}
                 {selectedExtrasData.length > 0 && (
@@ -1681,8 +1681,8 @@ export function PaymentRegistration({
                     <div className="text-xs text-muted-foreground pl-2 space-y-0.5">
                       {cart.map(it => (
                         <div key={it.producto_sucursal_id} className="flex items-start justify-between gap-4">
-                          <span className="min-w-0 break-words pr-2">{it.cantidad}× {it.nombre}</span>
-                          <span className="shrink-0 text-right tabular-nums whitespace-nowrap">${(it.precio_unitario * it.cantidad).toLocaleString('es-AR')}</span>
+                          <span className="truncate pr-2">{it.cantidad}× {it.nombre}</span>
+                          <span className="shrink-0 text-right">${(it.precio_unitario * it.cantidad).toLocaleString('es-AR')}</span>
                         </div>
                       ))}
                     </div>
@@ -1728,7 +1728,7 @@ export function PaymentRegistration({
 
               <div className="mt-4 flex flex-col gap-1 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-lg font-medium">Total a cobrar</span>
-                <span key={totalACobrar} className="animate-value-change self-end text-2xl font-bold text-foreground tabular-nums whitespace-nowrap sm:self-auto sm:text-3xl">${totalACobrar.toLocaleString()}</span>
+                <span key={totalACobrar} className="animate-value-change self-end text-3xl font-bold text-foreground sm:self-auto">${totalACobrar.toLocaleString()}</span>
               </div>
 
               {form.formState.submitCount > 0 && form.formState.errors.root && (

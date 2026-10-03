@@ -226,12 +226,12 @@ export function TareasPanel({ barbers }: TareasPanelProps) {
       <Card className="flex flex-col">
         <CardContent className="p-4 flex flex-col gap-3 flex-1">
           <div className="flex items-start justify-between gap-2">
-            <h3 className="font-medium text-sm leading-snug text-foreground">{t.titulo}</h3>
+            <h3 className="font-medium text-sm leading-snug text-foreground line-clamp-2">{t.titulo}</h3>
             {renderEstadoBadge(t)}
           </div>
 
           {t.descripcion && (
-            <p className="text-xs text-muted-foreground">{t.descripcion}</p>
+            <p className="text-xs text-muted-foreground line-clamp-2">{t.descripcion}</p>
           )}
 
           <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-muted-foreground mt-auto">
@@ -297,12 +297,12 @@ export function TareasPanel({ barbers }: TareasPanelProps) {
       <Card className={`flex flex-col ${venc?.vencida || isVencida ? 'opacity-70' : ''}`}>
         <CardContent className="p-4 flex flex-col gap-3 flex-1">
           <div className="flex items-start justify-between gap-2">
-            <h3 className="font-medium text-sm leading-snug text-foreground">{t.titulo}</h3>
+            <h3 className="font-medium text-sm leading-snug text-foreground line-clamp-2">{t.titulo}</h3>
             {renderEstadoBadge(t)}
           </div>
 
           {t.descripcion && (
-            <p className="text-xs text-muted-foreground">{t.descripcion}</p>
+            <p className="text-xs text-muted-foreground line-clamp-2">{t.descripcion}</p>
           )}
 
           <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-muted-foreground mt-auto">
@@ -354,14 +354,14 @@ export function TareasPanel({ barbers }: TareasPanelProps) {
       <Card className="flex flex-col">
         <CardContent className="p-4 flex flex-col gap-3 flex-1">
           <div className="flex items-start justify-between gap-2">
-            <h3 className="font-medium text-sm leading-snug text-foreground">{t.titulo}</h3>
+            <h3 className="font-medium text-sm leading-snug text-foreground line-clamp-2">{t.titulo}</h3>
             <Badge variant="outline" className="text-status-success-foreground border-status-success bg-status-success-bg gap-1">
               <CheckCircle className="w-3 h-3" />Completada
             </Badge>
           </div>
 
           {t.descripcion && (
-            <p className="text-xs text-muted-foreground">{t.descripcion}</p>
+            <p className="text-xs text-muted-foreground line-clamp-2">{t.descripcion}</p>
           )}
 
           <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-muted-foreground">

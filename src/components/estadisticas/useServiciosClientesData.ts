@@ -1,5 +1,3 @@
-import { useFinanceDemo } from '@/contexts/FinanceDemoContext';
-import type { OperationalReadOptions } from '@/hooks/useOperationalAccess';
 import { useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfMonth, endOfMonth, subMonths, parseISO } from 'date-fns';
@@ -71,15 +69,11 @@ export function useServiciosClientesData(
   organizationId: string | undefined,
   currentSucursal: Sucursal | null,
   periodoMeses: string,
-  options: OperationalReadOptions = {},
 ) {
-  const demo = useFinanceDemo();
-  const enabled = options.enabled !== false && !demo.active;
   const contextKey = `${organizationId ?? 'none'}::${currentSucursal?.id ?? 'all'}::${periodoMeses}`;
 
   const readState = useReadState<ServiciosClientesBundle>({
     contextKey,
-    enabled,
     errorMessage: 'No pudimos cargar las métricas de servicios y clientes.',
     staleErrorMessage: 'No pudimos actualizar las métricas de servicios y clientes.',
     surfaceId: `estadisticas-servicios-clientes:${organizationId ?? 'none'}`,
@@ -214,8 +208,6 @@ export function useServiciosClientesData(
   }, [organizationId, fetchAll]);
 
   const bundle = readState.data ?? EMPTY_BUNDLE;
-
-  if (demo.active) return { monthlyStats: demo.data.monthlyStats.slice(-parseInt(periodoMeses)), ventasAgregadas: demo.data.ventasAgregadas.slice(-parseInt(periodoMeses)), datosIncompletos: false, isLoading: false, phase: 'ready' as ReadPhase, error: null, retry: () => {} };
 
   return {
     monthlyStats: bundle.monthlyStats,

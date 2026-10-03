@@ -1,5 +1,3 @@
-import { useFinanceDemo } from '@/contexts/FinanceDemoContext';
-import type { OperationalReadOptions } from '@/hooks/useOperationalAccess';
 import { useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfMonth, endOfMonth, subMonths, eachMonthOfInterval, parseISO } from 'date-fns';
@@ -55,15 +53,11 @@ export function useEquipoData(
   organizationId: string | undefined,
   currentSucursal: Sucursal | null,
   periodoMeses: string,
-  options: OperationalReadOptions = {},
 ) {
-  const demo = useFinanceDemo();
-  const enabled = options.enabled !== false && !demo.active;
   const contextKey = `${organizationId ?? 'none'}::${currentSucursal?.id ?? 'all'}::${periodoMeses}`;
 
   const readState = useReadState<EquipoBundle>({
     contextKey,
-    enabled,
     errorMessage: 'No pudimos cargar los datos de equipo.',
     staleErrorMessage: 'No pudimos actualizar los datos de equipo.',
     surfaceId: `estadisticas-equipo:${organizationId ?? 'none'}`,
@@ -202,8 +196,6 @@ export function useEquipoData(
   }, [organizationId, fetchAll]);
 
   const bundle = readState.data ?? EMPTY_BUNDLE;
-
-  if (demo.active) return { rankingActual: demo.data.rankingActual, productosRanking: demo.data.productosRanking, historialPorBarbero: new Map([...demo.data.historialPorBarbero].map(([id, rows]) => [id, rows.slice(-parseInt(periodoMeses))])), datosIncompletos: false, isLoading: false, phase: 'ready' as ReadPhase, error: null, retry: () => {} };
 
   return {
     rankingActual: bundle.rankingActual,

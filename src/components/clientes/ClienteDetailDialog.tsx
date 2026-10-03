@@ -14,7 +14,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { EditableSectionHeader } from '@/components/ui/EditableSectionHeader';
-import { MetricGroup } from '@/components/ui/MetricGroup';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Calendar } from '@/components/ui/calendar';
@@ -667,24 +666,24 @@ export function ClienteDetailDialog({ clienteId, open, onOpenChange }: ClienteDe
                 <p className="text-sm text-muted-foreground">Sin reservas registradas.</p>
               ) : (
                 <>
-                  <MetricGroup size="metric" className="mb-4">
-                    <div className="rounded-lg border p-3 text-center">
+                  <div className="grid grid-cols-3 gap-3 mb-4 text-center">
+                    <div className="rounded-lg border p-3">
                       <p className="text-xs text-muted-foreground">Total</p>
-                      <p className="text-lg font-medium tabular-nums">{reservas.length}</p>
+                      <p className="text-lg font-medium">{reservas.length}</p>
                     </div>
-                    <div className="rounded-lg border p-3 text-center">
+                    <div className="rounded-lg border p-3">
                       <p className="text-xs text-muted-foreground">Última</p>
-                      <p className="text-xs font-medium mt-1 whitespace-nowrap">
+                      <p className="text-xs font-medium mt-1">
                         {ultimaReserva ? format(parseISO(ultimaReserva.fecha), 'd MMM yyyy', { locale: es }) : '—'}
                       </p>
                     </div>
-                    <div className="rounded-lg border p-3 text-center">
+                    <div className="rounded-lg border p-3">
                       <p className="text-xs text-muted-foreground">Próxima</p>
-                      <p className="text-xs font-medium mt-1 whitespace-nowrap">
+                      <p className="text-xs font-medium mt-1">
                         {proximaReserva ? format(parseISO(proximaReserva.fecha), 'd MMM yyyy', { locale: es }) : '—'}
                       </p>
                     </div>
-                  </MetricGroup>
+                  </div>
                   <div className="space-y-1.5 max-h-64 overflow-y-auto">
                     {[...reservas].reverse().map(r => (
                       <div key={r.id} className="flex items-center justify-between text-xs border rounded-md px-3 py-2">

@@ -44,15 +44,6 @@
         ],
         "createdAt": "2026-09-01T12:37:52.416Z",
         "reason": "Color-coding de turnos preexistente — mismo patrón ya sancionado en AgendaMultiDayTurnoCard.tsx (borderLeft por barbero/servicio), no tocado por el fix de z-index de 2026-09-01"
-      },
-      {
-        "rule": "design-system-font-size",
-        "value": "10px",
-        "files": [
-          "src/components/GastosPanel.tsx"
-        ],
-        "createdAt": "2026-09-28T14:18:10.021Z",
-        "reason": "Badge 'Automático' (variant=outline) — 10px coincide con la excepción ya sancionada en DESIGN.md Typography ('Micro 10px: exclusivo de badges, contadores...'), preexistente a C7.6, no tocado por la migración de Historial a RecordRow"
       }
     ]
   }

@@ -209,25 +209,20 @@ export function AgendaManagement({ sucursalId, organizationId, barbers, onNaviga
               }}
             >
               {/* La hairline sube al wrapper para que corra continua bajo la
-                  flecha y bajo los tabs. w-fit conserva el ancho ajustado al
-                  contenido cuando todo entra; max-w-full + min-w-0 dejan que la
-                  fila no supere la página y que el TabsList reciba solo el ancho
-                  que sobra junto a la flecha — así desborda por dentro (con sus
-                  flechas) en vez de ser recortado por el shell. */}
-              <div className="flex w-fit max-w-full items-end gap-4 border-b border-border">
+                  flecha y bajo los tabs; w-fit conserva el ancho ajustado al
+                  contenido que ya tenía el TabsList. */}
+              <div className="flex w-fit items-end gap-4 border-b border-border">
                 {volverAAgenda}
-                <div className="min-w-0 flex-1">
-                  <TabsList variant="underline" className="border-b-0">
-                    <TabsTrigger value="reservas" variant="underline" className="text-[13px]">
-                      <SlidersHorizontal className="h-4 w-4" />
-                      Configuración de reservas
-                    </TabsTrigger>
-                    <TabsTrigger value="portal" variant="underline" className="text-[13px]">
-                      <Globe className="h-4 w-4" />
-                      Portal público
-                    </TabsTrigger>
-                  </TabsList>
-                </div>
+                <TabsList variant="underline" className="w-auto border-b-0">
+                  <TabsTrigger value="reservas" variant="underline" className="text-[13px]">
+                    <SlidersHorizontal className="h-4 w-4" />
+                    Configuración de reservas
+                  </TabsTrigger>
+                  <TabsTrigger value="portal" variant="underline" className="text-[13px]">
+                    <Globe className="h-4 w-4" />
+                    Portal público
+                  </TabsTrigger>
+                </TabsList>
               </div>
 
               <TabsContent value="reservas" className="mt-3 space-y-6">

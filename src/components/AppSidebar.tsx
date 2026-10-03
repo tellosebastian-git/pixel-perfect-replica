@@ -1,14 +1,12 @@
-import { useFinanceDemo } from '@/contexts/FinanceDemoContext';
-import { DEMO_IDENTITY } from '@/lib/financeDemoData';
 import { useState, useEffect } from 'react';
-import { Bell, CreditCard, BarChart3, Wallet, ClipboardList, CalendarClock, Users, Store, Settings, ChevronLeft, Lock, Menu, X } from 'lucide-react';
+import { CreditCard, BarChart3, Wallet, ClipboardList, CalendarClock, Users, Store, Settings, ChevronLeft, Lock, Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { usePinProtection } from '@/hooks/usePinProtection';
-import { useWindowMode } from '@/hooks/use-window-mode';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { SucursalSelector } from '@/components/SucursalSelector';
 import { NotificationsBell } from '@/components/notifications/NotificationsBell';
 import { useSubscriptionAccess } from '@/hooks/useSubscriptionAccess';
@@ -48,7 +46,7 @@ const MGMT_IDS = new Set(['mi-negocio', 'config']);
 // aside, paddings, ícono de nav) — la misma que ya usa el ancho del <aside>.
 const SIZE_EASE = 'var(--ease-out-quint)';
 
-// Tamaño del ícono de nav en modo rail (isRailWidth): fijo en pantallas altas
+// Tamaño del ícono de nav en modo rail (railMode): fijo en pantallas altas
 // (100vh ≈ 900px+ → 40px, el tamaño de siempre), se achica con la altura de
 // viewport en pantallas más bajas hasta un piso de 36px (cómodo para tocar)
 // a ~768px de alto (laptop chica, caso de 8 ítems de nav) — así el rail
@@ -57,15 +55,8 @@ const SIZE_EASE = 'var(--ease-out-quint)';
 const RAIL_ICON_SIZE = 'clamp(36px, 3vh + 13px, 40px)';
 
 export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
-  const demo = useFinanceDemo();
-  // Modo de ventana (DESIGN.md → Layout): solo para las dos decisiones que
-  // una media query no puede tomar por sí sola — el valor inicial de
-  // `collapsed` y si un tap de navegación debe cerrar el drawer. El ancho,
-  // la posición y la visibilidad del shell (aside/hamburguesa/scrim/toggle,
-  // más abajo) se deciden con clases `sm:`/`lg:`, no leyendo este hook.
-  const mode = useWindowMode();
-  const isCompact = mode === 'compact';
-  const [collapsed, setCollapsed] = useState(isCompact);
+  const isMobile = useIsMobile();
+  const [collapsed, setCollapsed] = useState(isMobile);
   const { profile, roles, isOwner, isGeneralManager, isManager, isBarber, canManagePayments, canOperarCajaYGastos, canManageConfig, canViewConfig, canViewResumen, canViewTareas, canViewMiNegocio, canViewFinanzas, canViewTurnosAgenda, canViewClientes, signOut } = useAuth();
   const { organization } = useOrganization();
   const { access: subscriptionAccess } = useSubscriptionAccess();
@@ -73,17 +64,12 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
   const effectivePlan = resolveEffectivePlan(subscriptionAccess, organization?.plan);
 
   useEffect(() => {
-    if (isCompact) setCollapsed(true);
-  }, [isCompact]);
+    if (isMobile) setCollapsed(true);
+  }, [isMobile]);
 
-  // Ancho "riel" (64px): siempre en Medium (único estado disponible ahí) o
-  // en Expanded cuando el usuario lo colapsó. En Compact el drawer, cuando
-  // está abierto, siempre muestra la versión completa.
-  const isRailWidth = mode === 'medium' || (mode === 'expanded' && collapsed);
-  // Medium exige etiqueta visible (no depende de `title`/hover): un
-  // tratamiento nuevo, distinto del riel de Expanded colapsado, que sigue
-  // apoyándose en `title` para mouse (DESIGN.md → Layout, Do's).
-  const showMicroLabel = mode === 'medium';
+  // En mobile el drawer siempre muestra la versión completa: `collapsed` solo
+  // lo desliza fuera de pantalla. El riel compacto es exclusivo de desktop.
+  const railMode = !isMobile && collapsed;
 
   // Transición de texto que persiste en el DOM en ambos estados (logo,
   // labels de nav, section labels, selector de sucursal): opacity con
@@ -91,7 +77,7 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
   // que acompañe a ese mismo elemento (margin, max-height), siempre a
   // SIZE_EASE/200ms para que quede sincronizada con el ancho del aside.
   const textTransition = (extra?: string) => {
-    const opacityPart = isRailWidth
+    const opacityPart = railMode
       ? 'opacity 120ms var(--ease-in-quint)'
       : `opacity 150ms ${SIZE_EASE} 80ms`;
     return extra ? `${opacityPart}, ${extra}` : opacityPart;
@@ -111,9 +97,9 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
   const principalItems = navItems.filter((i) => !MGMT_IDS.has(i.id));
   const gestionItems = navItems.filter((i) => MGMT_IDS.has(i.id));
 
-  const displayName = demo.active ? DEMO_IDENTITY.user : (profile?.full_name || profile?.email || 'Usuario');
+  const displayName = profile?.full_name || profile?.email || 'Usuario';
   const initials =
-    (displayName)
+    (profile?.full_name || profile?.email || 'U')
       .split(/\s+/)
       .filter(Boolean)
       .slice(0, 2)
@@ -125,7 +111,7 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
 
   const handleTabChange = (tab: string) => {
     onTabChange(tab);
-    if (isCompact) setCollapsed(true);
+    if (isMobile) setCollapsed(true);
   };
 
   const renderNavItem = (item: NavItem, index: number) => {
@@ -133,7 +119,7 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
     const Icon = item.icon;
     const isPlanLocked = item.feature ? !planAllowsFeature(effectivePlan, item.feature) : false;
     const requiredPlan = item.feature ? getRequiredPlan(item.feature) : null;
-    const itemTitle = isRailWidth
+    const itemTitle = railMode
       ? `${item.label}${isPlanLocked && requiredPlan ? `, requiere ${PLAN_LABELS[requiredPlan]}` : ''}`
       : undefined;
     return (
@@ -148,9 +134,8 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
           aria-current={active ? 'page' : undefined}
           title={itemTitle}
           className={cn(
-            'group flex w-full items-center justify-center gap-0 rounded-[10px] py-1.5 text-sm transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-            'sm:flex-col sm:gap-0.5 lg:flex-row lg:gap-0',
-            isRailWidth ? 'px-0' : 'px-2',
+            'group flex w-full items-center justify-center rounded-[10px] py-1.5 text-sm transition-colors duration-150',
+            railMode ? 'px-0' : 'px-2',
             active
               ? 'bg-primary font-semibold text-primary-foreground'
               : 'font-medium text-muted-foreground hover:bg-muted hover:text-foreground',
@@ -160,7 +145,7 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
           <span
             className={cn(
               'relative grid shrink-0 place-items-center',
-              isRailWidth
+              railMode
                 ? cn(
                     'rounded-[10px]',
                     active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground group-hover:bg-muted',
@@ -170,12 +155,12 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
                   : 'h-5 w-5 rounded-md',
             )}
             style={{
-              ...(isRailWidth ? { width: RAIL_ICON_SIZE, height: RAIL_ICON_SIZE } : {}),
+              ...(railMode ? { width: RAIL_ICON_SIZE, height: RAIL_ICON_SIZE } : {}),
               transition: `width 200ms ${SIZE_EASE}, height 200ms ${SIZE_EASE}, border-radius 200ms ${SIZE_EASE}, background-color 200ms ${SIZE_EASE}, color 200ms ${SIZE_EASE}`,
             }}
           >
             <Icon className="h-5 w-5 shrink-0" />
-            {isPlanLocked && isRailWidth && (
+            {isPlanLocked && railMode && (
               <span
                 className={cn(
                   'absolute -right-0.5 -top-0.5 grid h-4 w-4 place-items-center rounded-full border border-background',
@@ -187,31 +172,23 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
             )}
           </span>
           <span
-            className="min-w-0 truncate text-left sm:hidden lg:block"
+            className="min-w-0 truncate text-left"
             style={{
-              opacity: isRailWidth ? 0 : 1,
-              marginLeft: isRailWidth ? '0px' : '0.625rem',
+              opacity: railMode ? 0 : 1,
+              marginLeft: railMode ? '0px' : '0.625rem',
               // flex-basis (no flex-1/flex-grow) a propósito: flex-grow no es
               // animable por CSS y, aunque quede invisible, seguiría
               // reclamando todo el espacio libre y correría el ícono del
               // centro. Con basis explícito el label transiciona a 0 de
               // verdad y justify-center puede centrar el ícono.
-              flexBasis: isRailWidth ? '0px' : '200px',
+              flexBasis: railMode ? '0px' : '200px',
               transition: textTransition(`margin-left 200ms ${SIZE_EASE}, flex-basis 200ms ${SIZE_EASE}`),
             }}
-            aria-hidden={isRailWidth}
+            aria-hidden={railMode}
           >
             {item.label}
           </span>
-          {showMicroLabel && (
-            // Etiqueta compacta del riel Medium (DESIGN.md → Typography,
-            // rol Micro extendido): visible siempre, sin depender de
-            // `title`/hover — a diferencia del riel de Expanded colapsado.
-            <span className="hidden w-full truncate text-center text-[10px] font-semibold leading-none sm:block lg:hidden">
-              {item.label}
-            </span>
-          )}
-          {!isRailWidth && isPlanLocked && requiredPlan && (
+          {!railMode && isPlanLocked && requiredPlan && (
             <span
               className={cn(
                 'ml-auto inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px]',
@@ -231,10 +208,10 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
     <p
       className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
       style={{
-        opacity: isRailWidth ? 0 : 1,
+        opacity: railMode ? 0 : 1,
         transition: textTransition(),
       }}
-      aria-hidden={isRailWidth}
+      aria-hidden={railMode}
     >
       {text}
     </p>
@@ -242,44 +219,47 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
 
   return (
     <>
-      {collapsed && (
+      {isMobile && collapsed && (
         <Button
           variant="outline"
           size="icon"
           onClick={() => setCollapsed(false)}
-          className="fixed left-4 top-4 z-40 h-11 w-11 rounded-full border bg-background/95 backdrop-blur sm:hidden"
+          className="fixed left-4 top-4 z-40 h-11 w-11 rounded-full border bg-background/95 backdrop-blur"
           aria-label="Abrir navegación"
         >
           <Menu className="h-5 w-5" />
         </Button>
       )}
 
-      {!collapsed && (
+      {isMobile && !collapsed && (
         <button
           type="button"
           aria-label="Cerrar navegación"
-          className="fixed inset-0 z-40 bg-foreground/50 backdrop-blur-sm animate-fade-in sm:hidden"
+          className="fixed inset-0 z-40 bg-foreground/50 backdrop-blur-sm animate-fade-in"
           onClick={() => setCollapsed(true)}
         />
       )}
 
       <aside
-        data-collapsed={collapsed}
         className={cn(
           'flex flex-col border-r border-border bg-background',
-          // Compact (<640): drawer fuera de pantalla; `collapsed` decide si
-          // está oculto o deslizado a la vista.
-          'fixed inset-y-0 left-0 z-40 w-[min(85vw,20rem)] max-w-[100vw] -translate-x-full [will-change:transform] transition-transform duration-200 [transition-timing-function:var(--ease-out-quint)]',
-          !collapsed && 'translate-x-0',
-          // Medium (640–1023): riel persistente de 64px, único estado
-          // disponible — el ancho nunca depende de `collapsed` acá porque
-          // ninguna regla `lg:` lo sobrescribe todavía. Expanded (≥1024):
-          // riel o sidebar expandido según la preferencia del usuario
-          // (`data-collapsed`).
-          'sm:static sm:z-10 sm:h-full sm:w-16 sm:translate-x-0 sm:[will-change:auto] sm:transition-[width] sm:duration-200 sm:[transition-timing-function:var(--ease-out-quint)]',
-          collapsed && 'sm:delay-sidebar-width',
-          'lg:data-[collapsed=false]:w-56',
+          isMobile
+            ? 'fixed inset-y-0 left-0 z-40 w-[min(85vw,20rem)] max-w-sm transition-transform duration-200 [transition-timing-function:var(--ease-out-quint)]'
+            : cn(
+                'z-10 h-full transition-[width] duration-200 [transition-timing-function:var(--ease-out-quint)]',
+                collapsed && 'delay-sidebar-width',
+              ),
+          !isMobile && (collapsed ? 'w-16' : 'w-56'),
         )}
+        style={
+          isMobile
+            ? {
+                transform: collapsed ? 'translate3d(-100%, 0, 0)' : 'translate3d(0, 0, 0)',
+                willChange: 'transform',
+                maxWidth: '100vw',
+              }
+            : undefined
+        }
       >
         {/* Brand identity — header con fondo navy sólido (bg-primary, el
             mismo tono que el ítem de nav activo y el botón de colapsar).
@@ -288,8 +268,8 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
         <div
           className="bg-primary py-1"
           style={{
-            paddingLeft: isRailWidth ? '0px' : '1rem',
-            paddingRight: isRailWidth ? '0px' : '1rem',
+            paddingLeft: railMode ? '0px' : '1rem',
+            paddingRight: railMode ? '0px' : '1rem',
             transition: `padding-left 200ms ${SIZE_EASE}, padding-right 200ms ${SIZE_EASE}`,
           }}
         >
@@ -297,17 +277,19 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
             <img
               src="/MagotipoBlanco.png"
               alt="Vittro"
-              title={isRailWidth ? demo.active ? DEMO_IDENTITY.organization : (organization?.name || 'Barbería') : undefined}
+              title={railMode ? organization?.name || 'Barbería' : undefined}
               className="h-20 w-20 shrink-0 object-contain"
             />
-            <button
-              type="button"
-              onClick={() => setCollapsed(true)}
-              aria-label="Cerrar navegación"
-              className="absolute right-0 top-0 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-primary-foreground/70 transition-colors hover:bg-primary-foreground/15 hover:text-primary-foreground sm:hidden"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            {isMobile && (
+              <button
+                type="button"
+                onClick={() => setCollapsed(true)}
+                aria-label="Cerrar navegación"
+                className="absolute right-0 top-0 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-primary-foreground/70 transition-colors hover:bg-primary-foreground/15 hover:text-primary-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
           {/* Selector de sucursal — sin caja (Variante J): un hairline lo
               separa del nombre de la organización y el trigger se ve como
@@ -321,7 +303,7 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
               renders internos completamente distintos de SucursalSelector
               (uno es un ícono estático, el otro un dropdown interactivo),
               no una diferencia de texto. Ver reporte del build. */}
-          {!isRailWidth && (
+          {!railMode && (
             <>
               <div className="mt-3 h-px w-full bg-primary-foreground/15" />
               <div className="mt-3 w-full [&_[role=combobox]]:border-0 [&_[role=combobox]]:bg-transparent [&_[role=combobox]]:text-primary-foreground/70 [&_[role=combobox]_svg]:text-primary-foreground/70 [&>div]:border-0 [&>div]:bg-transparent [&>div]:text-primary-foreground/70 [&>div]:ring-0">
@@ -329,7 +311,7 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
               </div>
             </>
           )}
-          {isRailWidth && <SucursalSelector collapsed />}
+          {railMode && <SucursalSelector collapsed />}
         </div>
 
         {/* Navigation */}
@@ -339,11 +321,11 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
               <div
                 className="overflow-hidden"
                 style={{
-                  opacity: isRailWidth ? 0 : 1,
-                  maxHeight: isRailWidth ? '0px' : '28px',
+                  opacity: railMode ? 0 : 1,
+                  maxHeight: railMode ? '0px' : '28px',
                   transition: textTransition(`max-height 200ms ${SIZE_EASE}`),
                 }}
-                aria-hidden={isRailWidth}
+                aria-hidden={railMode}
               >
                 {sectionLabel('Principal')}
               </div>
@@ -359,10 +341,10 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
                 <p
                   className="absolute inset-x-3 top-0 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
                   style={{
-                    opacity: isRailWidth ? 0 : 1,
+                    opacity: railMode ? 0 : 1,
                     transition: textTransition(),
                   }}
-                  aria-hidden={isRailWidth}
+                  aria-hidden={railMode}
                 >
                   Gestión
                 </p>
@@ -370,12 +352,12 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
                   <div
                     className="absolute inset-x-2 top-3 h-px bg-border"
                     style={{
-                      opacity: isRailWidth ? 1 : 0,
-                      transition: isRailWidth
+                      opacity: railMode ? 1 : 0,
+                      transition: railMode
                         ? `opacity 150ms ${SIZE_EASE} 80ms`
                         : 'opacity 120ms var(--ease-in-quint)',
                     }}
-                    aria-hidden={!isRailWidth}
+                    aria-hidden={!railMode}
                   />
                 )}
               </div>
@@ -394,7 +376,7 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
             swap condicional (igual que hoy). El chevron de colapsar SÍ
             quedó unificado como un solo botón persistente. Ver reporte. */}
         <div className="border-t border-border p-2">
-          {isRailWidth ? (
+          {railMode ? (
             <div className="flex flex-col items-center gap-1.5 py-2">
               <Avatar className="h-9 w-9" title={displayName}>
                 <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
@@ -403,16 +385,16 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
               </Avatar>
               {canViewTareas && (
                 <div className="[&>button]:h-8 [&>button]:w-8 [&>button]:min-w-0 [&>button]:rounded-lg [&>button]:p-0">
-                  {demo.active ? <Button variant="ghost" size="icon" disabled aria-label="Notificaciones pausadas durante la grabación"><Bell className="h-4 w-4" /></Button> : <NotificationsBell collapsed onNavigate={() => handleTabChange('tareas')} />}
+                  <NotificationsBell collapsed onNavigate={() => handleTabChange('tareas')} />
                 </div>
               )}
-              {!demo.active && requiresPin && isUnlocked && (
+              {requiresPin && isUnlocked && (
                 <button
                   type="button"
                   onClick={lock}
                   title={`Bloquear (${unlockedBy})`}
                   aria-label="Bloquear"
-                  className="hit-area-expand grid h-8 w-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
                   <Lock className="h-4 w-4" />
                 </button>
@@ -436,10 +418,10 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
               <div className="flex shrink-0 items-center gap-1">
                 {canViewTareas && (
                   <div className="[&>button]:h-8 [&>button]:w-8 [&>button]:min-w-0 [&>button]:rounded-lg [&>button]:p-0">
-                    {demo.active ? <Button variant="ghost" size="icon" disabled aria-label="Notificaciones pausadas durante la grabación"><Bell className="h-4 w-4" /></Button> : <NotificationsBell collapsed onNavigate={() => handleTabChange('tareas')} />}
+                    <NotificationsBell collapsed onNavigate={() => handleTabChange('tareas')} />
                   </div>
                 )}
-                {!demo.active && requiresPin && isUnlocked && (
+                {requiresPin && isUnlocked && (
                   <button
                     type="button"
                     onClick={lock}
@@ -453,23 +435,22 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
               </div>
             </div>
           )}
-          {/* Toggle riel ↔ expandido: exclusivo de Expanded — Medium no
-              tiene otro estado disponible y Compact no tiene sidebar
-              persistente que colapsar. */}
-          <button
-            type="button"
-            onClick={() => setCollapsed(!collapsed)}
-            title={collapsed ? 'Expandir' : 'Colapsar'}
-            aria-label={collapsed ? 'Expandir navegación' : 'Colapsar navegación'}
-            className="mt-1 hidden w-full items-center justify-center rounded-lg bg-primary py-2 text-primary-foreground transition-colors hover:bg-primary/85 lg:flex"
-          >
-            <ChevronLeft
-              className={cn(
-                'h-4 w-4 transition-transform duration-200 [transition-timing-function:var(--ease-out-quint)]',
-                collapsed && 'rotate-180',
-              )}
-            />
-          </button>
+          {!isMobile && (
+            <button
+              type="button"
+              onClick={() => setCollapsed(!collapsed)}
+              title={collapsed ? 'Expandir' : 'Colapsar'}
+              aria-label={collapsed ? 'Expandir navegación' : 'Colapsar navegación'}
+              className="mt-1 flex w-full items-center justify-center rounded-lg bg-primary py-2 text-primary-foreground transition-colors hover:bg-primary/85"
+            >
+              <ChevronLeft
+                className={cn(
+                  'h-4 w-4 transition-transform duration-200 [transition-timing-function:var(--ease-out-quint)]',
+                  collapsed && 'rotate-180',
+                )}
+              />
+            </button>
+          )}
         </div>
       </aside>
     </>

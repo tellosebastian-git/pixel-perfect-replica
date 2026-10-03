@@ -1,8 +1,9 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
-import { perfStart } from '@/lib/perfLog';
-import { ReadCancelledError, ReadFailure, runReadWithRetry } from '@/lib/readRetry';
+import { perfStart, withTimeout, isTimeoutError } from '@/lib/perfLog';
+
+const ORGANIZATION_TIMEOUT_MS = 12000;
 
 
 interface Organization {
@@ -25,6 +26,7 @@ interface PlanFeatures {
   max_services: number;
   can_export_reports: boolean;
   can_view_analytics: boolean;
+  price_monthly: number;
 }
 
 interface OrganizationContextType {
@@ -39,90 +41,100 @@ interface OrganizationContextType {
 const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
 
 export function OrganizationProvider({ children }: { children: ReactNode }) {
-  const { user, profile, isLoading: authLoading, authError } = useAuth();
-  const [storedOrganization, setOrganization] = useState<Organization | null>(null);
+  const { user, isLoading: authLoading } = useAuth();
+  const [organization, setOrganization] = useState<Organization | null>(null);
   const [planFeatures, setPlanFeatures] = useState<PlanFeatures | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [storedError, setError] = useState<string | null>(null);
-  const [loadedKey, setLoadedKey] = useState<string | null>(null);
-  const generationRef = useRef(0);
-  const controllerRef = useRef<AbortController | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const readyProfile = !authLoading && !authError && user && profile?.id === user.id ? profile : null;
-  const orgId = readyProfile?.organization_id ?? null;
-  const currentKey = readyProfile ? `${readyProfile.id}:${orgId ?? 'none'}` : null;
-  const organization = loadedKey === currentKey ? storedOrganization : null;
-  const error = loadedKey === currentKey ? storedError : null;
-
-  const fetchOrganization = useCallback(async () => {
-    controllerRef.current?.abort();
-    const controller = new AbortController();
-    controllerRef.current = controller;
-    const generation = ++generationRef.current;
-    setLoadedKey(currentKey);
-    setOrganization(null);
-    setPlanFeatures(null);
+  const fetchOrganization = async () => {
     setError(null);
 
-    if (!currentKey) {
-      setIsLoading(false);
-      return;
-    }
-    if (!orgId) {
-      setError('Tu cuenta no tiene una organización asignada.');
+    if (!user) {
+      setOrganization(null);
+      setPlanFeatures(null);
       setIsLoading(false);
       return;
     }
 
     setIsLoading(true);
     const perf = perfStart('organization');
+
     try {
-      const org = await runReadWithRetry<Organization | null>(async signal => {
-        const { data, error: queryError, status } = await supabase
+      const loader = (async () => {
+        // 1. Resolver organization_id desde el profile.
+        const { data: profileRow, error: profileErr } = await supabase
+          .from('profiles')
+          .select('organization_id')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (profileErr) throw profileErr;
+
+        const orgId = profileRow?.organization_id;
+        if (!orgId) return { org: null as Organization | null, noOrg: true };
+
+        // 2. Cargar organización por id explícito.
+        const { data: orgData, error: orgErr } = await supabase
           .from('organizations')
           .select('*')
           .eq('id', orgId)
-          .maybeSingle()
-          .abortSignal(signal);
-        return { data: data as Organization | null, error: queryError, status };
-      }, { signal: controller.signal });
-      if (generationRef.current !== generation || controller.signal.aborted) return;
+          .maybeSingle();
+        if (orgErr) throw orgErr;
+        return { org: (orgData as Organization | null) ?? null, noOrg: false };
+      })();
+
+      const { org, noOrg } = await withTimeout(loader, ORGANIZATION_TIMEOUT_MS, 'fetchOrganization');
+
+      if (noOrg) {
+        setOrganization(null);
+        setPlanFeatures(null);
+        setError('Tu cuenta no tiene una organización asignada.');
+        perf.success({ result: 'no-org' });
+        return;
+      }
       if (!org) {
+        setOrganization(null);
+        setPlanFeatures(null);
         setError('No pudimos cargar tu organización.');
         perf.success({ result: 'empty' });
         return;
       }
+
       setOrganization(org);
       perf.success({ result: 'ok' });
 
-      // Optional plan features never block access and cannot write after a tenant switch.
-      void (async () => {
+      // 3. Plan features en background: nunca bloquea ni rompe el flujo.
+      (async () => {
         try {
-          const { data } = await supabase
+          const { data: featuresData } = await supabase
             .from('plan_features')
-            .select('max_barbers, max_services, can_export_reports, can_view_analytics')
+            .select('*')
             .eq('plan', org.plan)
-            .maybeSingle()
-            .abortSignal(controller.signal);
-          if (generationRef.current === generation && !controller.signal.aborted && data) {
-            setPlanFeatures(data as PlanFeatures);
-          }
+            .maybeSingle();
+          if (featuresData) setPlanFeatures(featuresData as PlanFeatures);
         } catch (planErr) {
-          if (!controller.signal.aborted) console.warn('[Org] plan_features:error', planErr);
+          console.warn('[Org] plan_features:error', planErr);
         }
       })();
-    } catch (err) {
-      if (err instanceof ReadCancelledError || controller.signal.aborted) return;
-      if (err instanceof ReadFailure && err.message === 'read_timeout') perf.timeout(); else perf.error(err);
-      if (generationRef.current === generation) {
-        setError('No pudimos cargar tu organización. Probá reintentar.');
-      }
-    } finally {
-      if (generationRef.current === generation) setIsLoading(false);
-    }
-  }, [currentKey, orgId]);
 
-  const refreshOrganization = async () => { await fetchOrganization(); };
+    } catch (err) {
+      if (isTimeoutError(err)) perf.timeout(); else perf.error(err);
+      setOrganization(null);
+      setPlanFeatures(null);
+      setError(
+        isTimeoutError(err)
+          ? 'La carga de tu organización está tardando demasiado. Probá reintentar.'
+          : 'No pudimos cargar tu organización. Reintentá en unos segundos.',
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
+  const refreshOrganization = async () => {
+    await fetchOrganization();
+  };
 
   const updateOrganization = async (updates: Partial<Organization>) => {
     if (!organization) {
@@ -139,9 +151,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         return { error: updErr };
       }
 
-      if (currentKey && loadedKey === currentKey) {
-        setOrganization(prev => prev?.id === organization.id ? { ...prev, ...updates } : prev);
-      }
+      setOrganization(prev => prev ? { ...prev, ...updates } : null);
       return { error: null };
     } catch (err) {
       return { error: err as Error };
@@ -149,16 +159,18 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    void fetchOrganization();
-    return () => controllerRef.current?.abort();
-  }, [fetchOrganization]);
+    if (!authLoading) {
+      fetchOrganization();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, authLoading]);
 
   return (
     <OrganizationContext.Provider
       value={{
         organization,
-        planFeatures: loadedKey === currentKey ? planFeatures : null,
-        isLoading: authLoading || Boolean(currentKey && (loadedKey !== currentKey || isLoading)),
+        planFeatures,
+        isLoading: isLoading || authLoading,
         error,
         refreshOrganization,
         updateOrganization,

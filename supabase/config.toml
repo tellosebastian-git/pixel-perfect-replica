@@ -50,9 +50,3 @@ verify_jwt = true
 
 [functions.subscription-mp-webhook]
 verify_jwt = false
-
-[functions.platform-admin-query]
-verify_jwt = true
-
-[functions.platform-admin-price-change]
-verify_jwt = true

@@ -1,6 +1,3 @@
-import { useFinanceDemo } from '@/contexts/FinanceDemoContext';
-import { useOperationalAccess, type OperationalReadOptions } from '@/hooks/useOperationalAccess';
-import { runFinanceWrite } from '@/lib/financeDemoRuntime';
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/contexts/OrganizationContext';
@@ -20,18 +17,14 @@ export interface Inversion {
   created_at: string;
 }
 
-export function useInversiones(options: OperationalReadOptions = {}) {
-  const demo = useFinanceDemo();
-  const enabled = options.enabled !== false && !demo.active;
-  const access = useOperationalAccess(enabled);
+export function useInversiones() {
   const { organization } = useOrganization();
   const { currentSucursal } = useSucursal();
   const [inversiones, setInversiones] = useState<Inversion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const fetchInversiones = useCallback(async () => {
-    if (!organization?.id || !enabled || !access.allowed()) return;
-    const request = access.start();
+    if (!organization?.id) return;
     setIsLoading(true);
     try {
       let query = supabase
@@ -44,20 +37,17 @@ export function useInversiones(options: OperationalReadOptions = {}) {
         query = query.eq('sucursal_id', currentSucursal.id);
       }
 
-      const { data, error } = await query.abortSignal(request.signal);
-      if (!request.current()) return;
+      const { data, error } = await query;
 
       if (error) throw error;
       setInversiones((data as Inversion[]) || []);
     } catch (error: any) {
-      if (!request.current()) return;
       console.error('Error fetching inversiones:', error);
       toast.error('Error al cargar inversiones');
     } finally {
-      if (request.current()) setIsLoading(false);
-      request.finish();
+      setIsLoading(false);
     }
-  }, [enabled, access, organization?.id, currentSucursal]);
+  }, [organization?.id, currentSucursal]);
 
   useEffect(() => {
     fetchInversiones();
@@ -71,7 +61,6 @@ export function useInversiones(options: OperationalReadOptions = {}) {
     categoria?: string;
     descripcion?: string;
   }) => {
-    if (!access.allowed()) return;
     if (!organization?.id) {
       toast.error('No se encontró la organización');
       return null;
@@ -105,7 +94,6 @@ export function useInversiones(options: OperationalReadOptions = {}) {
   };
 
   const deleteInversion = async (id: string) => {
-    if (!access.allowed()) return;
     try {
       const { error } = await supabase.from('inversiones').delete().eq('id', id);
       if (error) throw error;
@@ -132,11 +120,10 @@ export function useInversiones(options: OperationalReadOptions = {}) {
   return {
     inversiones,
     isLoading,
-    addInversion: (...args: Parameters<typeof addInversion>) => runFinanceWrite(() => addInversion(...args)),
-    deleteInversion: (...args: Parameters<typeof deleteInversion>) => runFinanceWrite(() => deleteInversion(...args)),
+    addInversion,
+    deleteInversion,
     getAmortizacionMensual,
     getMesesTranscurridos,
     refetch: fetchInversiones,
-    ...(demo.active ? { inversiones: demo.data.inversiones, isLoading: false } : {}),
   };
 }
