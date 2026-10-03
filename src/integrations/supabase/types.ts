@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -48,6 +48,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "access_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
             referencedColumns: ["id"]
           },
         ]
@@ -107,6 +114,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agenda_config_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
             referencedColumns: ["id"]
           },
           {
@@ -217,6 +231,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "barbero_historial_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "barbero_historial_sucursal_id_fkey"
             columns: ["sucursal_id"]
             isOneToOne: false
@@ -301,6 +322,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "barberos_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "barberos_sucursal_id_fkey"
             columns: ["sucursal_id"]
             isOneToOne: false
@@ -375,6 +403,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "barberos_sucursales_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "barberos_sucursales_sucursal_id_fkey"
             columns: ["sucursal_id"]
             isOneToOne: false
@@ -443,6 +478,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bloqueos_agenda_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
             referencedColumns: ["id"]
           },
           {
@@ -930,6 +972,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "descuentos_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "descuentos_sucursal_id_fkey"
             columns: ["sucursal_id"]
             isOneToOne: false
@@ -1051,6 +1100,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "deudas_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "deudas_sucursal_id_fkey"
             columns: ["sucursal_id"]
             isOneToOne: false
@@ -1126,6 +1182,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "Egresos_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "Egresos_pago_deuda_id_fkey"
             columns: ["pago_deuda_id"]
             isOneToOne: false
@@ -1194,6 +1257,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "extras_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
             referencedColumns: ["id"]
           },
           {
@@ -1367,6 +1437,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "horarios_trabajo_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "horarios_trabajo_sucursal_id_fkey"
             columns: ["sucursal_id"]
             isOneToOne: false
@@ -1525,6 +1602,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ingresos_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "ingresos_sucursal_id_fkey"
             columns: ["sucursal_id"]
             isOneToOne: false
@@ -1613,6 +1697,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ingresos_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
             referencedColumns: ["id"]
           },
           {
@@ -1743,6 +1834,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "inversiones_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "inversiones_sucursal_id_fkey"
             columns: ["sucursal_id"]
             isOneToOne: false
@@ -1800,6 +1898,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lineas_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
             referencedColumns: ["id"]
           },
         ]
@@ -1883,6 +1988,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "mercadopago_subscription_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mercadopago_subscription_events_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_payments_v"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "mercadopago_subscription_events_payment_id_fkey"
             columns: ["payment_id"]
             isOneToOne: false
@@ -1894,6 +2013,13 @@ export type Database = {
             columns: ["subscription_id"]
             isOneToOne: false
             referencedRelation: "organization_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mercadopago_subscription_events_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_subscriptions_v"
             referencedColumns: ["id"]
           },
         ]
@@ -2000,6 +2126,13 @@ export type Database = {
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "mp_connections_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
         ]
       }
       mp_devices: {
@@ -2045,6 +2178,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "mp_devices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "mp_devices_sucursal_id_fkey"
             columns: ["sucursal_id"]
             isOneToOne: false
@@ -2087,6 +2227,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mp_webhook_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
             referencedColumns: ["id"]
           },
         ]
@@ -2247,7 +2394,9 @@ export type Database = {
       }
       organization_subscriptions: {
         Row: {
+          billing_amount_ars: number | null
           billing_plan_code: string | null
+          billing_price_version: number | null
           cancel_at_period_end: boolean
           cancelled_at: string | null
           created_at: string
@@ -2265,6 +2414,8 @@ export type Database = {
           next_payment_date: string | null
           organization_id: string
           payer_email: string | null
+          pending_checkout_amount_ars: number | null
+          pending_checkout_price_version: number | null
           pending_plan_code: string | null
           provider: string
           status: string
@@ -2273,7 +2424,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          billing_amount_ars?: number | null
           billing_plan_code?: string | null
+          billing_price_version?: number | null
           cancel_at_period_end?: boolean
           cancelled_at?: string | null
           created_at?: string
@@ -2291,6 +2444,8 @@ export type Database = {
           next_payment_date?: string | null
           organization_id: string
           payer_email?: string | null
+          pending_checkout_amount_ars?: number | null
+          pending_checkout_price_version?: number | null
           pending_plan_code?: string | null
           provider?: string
           status?: string
@@ -2299,7 +2454,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          billing_amount_ars?: number | null
           billing_plan_code?: string | null
+          billing_price_version?: number | null
           cancel_at_period_end?: boolean
           cancelled_at?: string | null
           created_at?: string
@@ -2317,6 +2474,8 @@ export type Database = {
           next_payment_date?: string | null
           organization_id?: string
           payer_email?: string | null
+          pending_checkout_amount_ars?: number | null
+          pending_checkout_price_version?: number | null
           pending_plan_code?: string | null
           provider?: string
           status?: string
@@ -2351,6 +2510,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: true
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_subscriptions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "platform_admin_organizations_v"
             referencedColumns: ["id"]
           },
           {
@@ -2557,6 +2723,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "payment_methods_config_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "payment_methods_config_sucursal_id_fkey"
             columns: ["sucursal_id"]
             isOneToOne: false
@@ -2574,7 +2747,6 @@ export type Database = {
           max_barbers: number | null
           max_services: number | null
           plan: string
-          price_monthly: number | null
         }
         Insert: {
           can_export_reports?: boolean | null
@@ -2584,7 +2756,6 @@ export type Database = {
           max_barbers?: number | null
           max_services?: number | null
           plan: string
-          price_monthly?: number | null
         }
         Update: {
           can_export_reports?: boolean | null
@@ -2594,7 +2765,54 @@ export type Database = {
           max_barbers?: number | null
           max_services?: number | null
           plan?: string
-          price_monthly?: number | null
+        }
+        Relationships: []
+      }
+      platform_admin_audit_log: {
+        Row: {
+          action: string
+          actor_alias: string
+          actor_user_id: string | null
+          created_at: string
+          id: string
+          next_state: Json
+          previous_state: Json
+          reason: string | null
+          request_id: string
+          result_detail: Json
+          result_status: string
+          target_id: string | null
+          target_type: string
+        }
+        Insert: {
+          action: string
+          actor_alias?: string
+          actor_user_id?: string | null
+          created_at?: string
+          id?: string
+          next_state?: Json
+          previous_state?: Json
+          reason?: string | null
+          request_id: string
+          result_detail?: Json
+          result_status?: string
+          target_id?: string | null
+          target_type: string
+        }
+        Update: {
+          action?: string
+          actor_alias?: string
+          actor_user_id?: string | null
+          created_at?: string
+          id?: string
+          next_state?: Json
+          previous_state?: Json
+          reason?: string | null
+          request_id?: string
+          result_detail?: Json
+          result_status?: string
+          target_id?: string | null
+          target_type?: string
         }
         Relationships: []
       }
@@ -2647,6 +2865,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: true
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portal_config_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "platform_admin_organizations_v"
             referencedColumns: ["id"]
           },
         ]
@@ -2811,6 +3036,13 @@ export type Database = {
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
         ]
       }
       push_tokens: {
@@ -2847,6 +3079,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "push_tokens_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
             referencedColumns: ["id"]
           },
         ]
@@ -2942,6 +3181,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ReportesMensuales_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "ReportesMensuales_sucursal_id_fkey"
             columns: ["sucursal_id"]
             isOneToOne: false
@@ -3011,6 +3257,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resumenes_mensuales_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
             referencedColumns: ["id"]
           },
           {
@@ -3125,6 +3378,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "servicios_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
             referencedColumns: ["id"]
           },
           {
@@ -3264,6 +3524,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "subscription_payments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "subscription_payments_plan_code_fkey"
             columns: ["plan_code"]
             isOneToOne: false
@@ -3275,6 +3542,13 @@ export type Database = {
             columns: ["subscription_id"]
             isOneToOne: false
             referencedRelation: "organization_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_payments_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_subscriptions_v"
             referencedColumns: ["id"]
           },
         ]
@@ -3341,10 +3615,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "subscription_plan_changes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "subscription_plan_changes_subscription_id_fkey"
             columns: ["subscription_id"]
             isOneToOne: false
             referencedRelation: "organization_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_plan_changes_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_subscriptions_v"
             referencedColumns: ["id"]
           },
           {
@@ -3366,6 +3654,7 @@ export type Database = {
           is_active: boolean
           metadata: Json
           name: string
+          price_version: number
           sort_order: number
           updated_at: string
         }
@@ -3378,6 +3667,7 @@ export type Database = {
           is_active?: boolean
           metadata?: Json
           name: string
+          price_version?: number
           sort_order: number
           updated_at?: string
         }
@@ -3390,10 +3680,218 @@ export type Database = {
           is_active?: boolean
           metadata?: Json
           name?: string
+          price_version?: number
           sort_order?: number
           updated_at?: string
         }
         Relationships: []
+      }
+      subscription_price_change_batches: {
+        Row: {
+          actor_alias: string
+          actor_user_id: string | null
+          completed_at: string | null
+          created_at: string
+          expected_updated_at: string
+          failed_items: number
+          id: string
+          new_amount_ars: number
+          new_price_version: number
+          old_amount_ars: number
+          old_price_version: number
+          plan_code: string
+          processed_items: number
+          reason: string
+          request_id: string
+          skipped_items: number
+          started_at: string | null
+          status: string
+          succeeded_items: number
+          total_items: number
+          updated_at: string
+        }
+        Insert: {
+          actor_alias?: string
+          actor_user_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          expected_updated_at: string
+          failed_items?: number
+          id?: string
+          new_amount_ars: number
+          new_price_version: number
+          old_amount_ars: number
+          old_price_version: number
+          plan_code: string
+          processed_items?: number
+          reason: string
+          request_id: string
+          skipped_items?: number
+          started_at?: string | null
+          status?: string
+          succeeded_items?: number
+          total_items?: number
+          updated_at?: string
+        }
+        Update: {
+          actor_alias?: string
+          actor_user_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          expected_updated_at?: string
+          failed_items?: number
+          id?: string
+          new_amount_ars?: number
+          new_price_version?: number
+          old_amount_ars?: number
+          old_price_version?: number
+          plan_code?: string
+          processed_items?: number
+          reason?: string
+          request_id?: string
+          skipped_items?: number
+          started_at?: string | null
+          status?: string
+          succeeded_items?: number
+          total_items?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_price_change_batches_plan_code_fkey"
+            columns: ["plan_code"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
+      subscription_price_change_items: {
+        Row: {
+          attempts: number
+          batch_id: string
+          claimed_at: string | null
+          compensation_attempts: number
+          completed_at: string | null
+          created_at: string
+          error_code: string | null
+          error_message: string | null
+          expected_external_reference: string | null
+          id: string
+          idempotency_key: string
+          item_type: string
+          last_http_status: number | null
+          next_retry_at: string | null
+          organization_id: string | null
+          preapproval_id: string | null
+          provider_mutation_kind: string | null
+          provider_mutation_started_at: string | null
+          provider_mutation_subscription_id: string | null
+          provider_mutation_subscription_updated_at: string | null
+          provider_response_ref: string | null
+          requires_compensation: boolean
+          status: string
+          subscription_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          batch_id: string
+          claimed_at?: string | null
+          compensation_attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          expected_external_reference?: string | null
+          id?: string
+          idempotency_key?: string
+          item_type: string
+          last_http_status?: number | null
+          next_retry_at?: string | null
+          organization_id?: string | null
+          preapproval_id?: string | null
+          provider_mutation_kind?: string | null
+          provider_mutation_started_at?: string | null
+          provider_mutation_subscription_id?: string | null
+          provider_mutation_subscription_updated_at?: string | null
+          provider_response_ref?: string | null
+          requires_compensation?: boolean
+          status?: string
+          subscription_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          batch_id?: string
+          claimed_at?: string | null
+          compensation_attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          expected_external_reference?: string | null
+          id?: string
+          idempotency_key?: string
+          item_type?: string
+          last_http_status?: number | null
+          next_retry_at?: string | null
+          organization_id?: string | null
+          preapproval_id?: string | null
+          provider_mutation_kind?: string | null
+          provider_mutation_started_at?: string | null
+          provider_mutation_subscription_id?: string | null
+          provider_mutation_subscription_updated_at?: string | null
+          provider_response_ref?: string | null
+          requires_compensation?: boolean
+          status?: string
+          subscription_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_price_change_items_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_price_change_batches_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_price_change_items_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_price_change_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_price_change_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_price_change_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_price_change_items_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "organization_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_price_change_items_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_subscriptions_v"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sucursal_accounts: {
         Row: {
@@ -3524,6 +4022,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "sucursal_barberos_snapshot_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "sucursal_barberos_snapshot_sucursal_id_fkey"
             columns: ["sucursal_id"]
             isOneToOne: false
@@ -3560,6 +4065,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sucursal_payment_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
             referencedColumns: ["id"]
           },
           {
@@ -3602,6 +4114,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sucursal_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
             referencedColumns: ["id"]
           },
           {
@@ -3659,6 +4178,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sucursales_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
             referencedColumns: ["id"]
           },
         ]
@@ -3777,6 +4303,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "tareas_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "tareas_recurrencia_id_fkey"
             columns: ["recurrencia_id"]
             isOneToOne: false
@@ -3876,6 +4409,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tareas_recurrentes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
             referencedColumns: ["id"]
           },
           {
@@ -3986,6 +4526,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "turnos_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
             referencedColumns: ["id"]
           },
           {
@@ -4143,6 +4690,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "user_sucursales_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "user_sucursales_sucursal_id_fkey"
             columns: ["sucursal_id"]
             isOneToOne: false
@@ -4257,6 +4811,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venta_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
             referencedColumns: ["id"]
           },
           {
@@ -4551,11 +5112,329 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "barberos_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "barberos_sucursal_id_fkey"
             columns: ["sucursal_id"]
             isOneToOne: false
             referencedRelation: "sucursales"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      platform_admin_audit_v: {
+        Row: {
+          action: string | null
+          actor_alias: string | null
+          actor_user_id: string | null
+          created_at: string | null
+          id: string | null
+          next_state: Json | null
+          previous_state: Json | null
+          reason: string | null
+          request_id: string | null
+          result: string | null
+          result_status: string | null
+          search_text: string | null
+          target_id: string | null
+          target_type: string | null
+        }
+        Insert: {
+          action?: string | null
+          actor_alias?: string | null
+          actor_user_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          next_state?: Json | null
+          previous_state?: Json | null
+          reason?: string | null
+          request_id?: string | null
+          result?: never
+          result_status?: string | null
+          search_text?: never
+          target_id?: string | null
+          target_type?: string | null
+        }
+        Update: {
+          action?: string | null
+          actor_alias?: string | null
+          actor_user_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          next_state?: Json | null
+          previous_state?: Json | null
+          reason?: string | null
+          request_id?: string | null
+          result?: never
+          result_status?: string | null
+          search_text?: never
+          target_id?: string | null
+          target_type?: string | null
+        }
+        Relationships: []
+      }
+      platform_admin_organizations_v: {
+        Row: {
+          access_status: string | null
+          billing_amount_ars: number | null
+          branches_count: number | null
+          created_at: string | null
+          current_period_end: string | null
+          id: string | null
+          is_enabled: boolean | null
+          last_payment_at: string | null
+          name: string | null
+          plan_code: string | null
+          plan_name: string | null
+          search_text: string | null
+          slug: string | null
+          trial_ends_at: string | null
+          users_count: number | null
+        }
+        Relationships: []
+      }
+      platform_admin_overview_v: {
+        Row: {
+          approved_payments_amount_ars: number | null
+          approved_payments_count: number | null
+          barberias_acceso: number | null
+          incidencias: number | null
+          organizations_breakdown: Json | null
+          payments_30_breakdown: Json | null
+          price_changes_breakdown: Json | null
+          subscriptions_breakdown: Json | null
+        }
+        Relationships: []
+      }
+      platform_admin_payments_v: {
+        Row: {
+          amount_ars: number | null
+          created_at: string | null
+          currency_id: string | null
+          due_at: string | null
+          effective_at: string | null
+          id: string | null
+          mercadopago_authorized_payment_id: string | null
+          mercadopago_payment_id: string | null
+          organization_id: string | null
+          organization_name: string | null
+          paid_at: string | null
+          period_end: string | null
+          period_start: string | null
+          plan_code: string | null
+          provider: string | null
+          search_text: string | null
+          status: string | null
+          subscription_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_payments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_payments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_payments_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "organization_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_payments_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_subscriptions_v"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      platform_admin_price_change_batches_v: {
+        Row: {
+          actor_alias: string | null
+          actor_user_id: string | null
+          completed_at: string | null
+          created_at: string | null
+          expected_updated_at: string | null
+          failed_items: number | null
+          id: string | null
+          new_amount_ars: number | null
+          new_price_version: number | null
+          old_amount_ars: number | null
+          old_price_version: number | null
+          pending_count: number | null
+          plan_code: string | null
+          processed_items: number | null
+          processing_count: number | null
+          reason: string | null
+          request_id: string | null
+          retryable_count: number | null
+          skipped_items: number | null
+          started_at: string | null
+          status: string | null
+          succeeded_items: number | null
+          total_items: number | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_price_change_batches_plan_code_fkey"
+            columns: ["plan_code"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
+      platform_admin_price_change_items_v: {
+        Row: {
+          attempts: number | null
+          batch_id: string | null
+          claimed_at: string | null
+          completed_at: string | null
+          error_code: string | null
+          error_message: string | null
+          id: string | null
+          item_type: string | null
+          last_http_status: number | null
+          organization_id: string | null
+          organization_name: string | null
+          preapproval_id: string | null
+          status: string | null
+          subscription_id: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_price_change_items_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_price_change_batches_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_price_change_items_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_price_change_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_price_change_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_price_change_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_price_change_items_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "organization_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_price_change_items_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_subscriptions_v"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      platform_admin_price_impact_v: {
+        Row: {
+          eligible_active_renewals: number | null
+          excluded: number | null
+          exclusions: Json | null
+          pending_checkouts: number | null
+          plan_code: string | null
+        }
+        Relationships: []
+      }
+      platform_admin_subscriptions_v: {
+        Row: {
+          access_status: string | null
+          billing_amount_ars: number | null
+          billing_plan_code: string | null
+          billing_price_version: number | null
+          cancel_at_period_end: boolean | null
+          current_period_end: string | null
+          current_period_start: string | null
+          effective_plan_code: string | null
+          has_preapproval: boolean | null
+          id: string | null
+          mercadopago_status: string | null
+          next_payment_date: string | null
+          organization_id: string | null
+          organization_name: string | null
+          organization_slug: string | null
+          pending_checkout_amount_ars: number | null
+          pending_checkout_price_version: number | null
+          pending_plan_code: string | null
+          provider: string | null
+          resolved_plan_code: string | null
+          search_text: string | null
+          source_status: string | null
+          trial_ends_at: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_subscriptions_billing_plan_code_fkey"
+            columns: ["billing_plan_code"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "organization_subscriptions_effective_plan_code_fkey"
+            columns: ["effective_plan_code"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "organization_subscriptions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_subscriptions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_subscriptions_pending_plan_code_fkey"
+            columns: ["pending_plan_code"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["code"]
           },
         ]
       }
@@ -4935,6 +5814,113 @@ export type Database = {
         Returns: undefined
       }
       org_has_any_pin: { Args: never; Returns: boolean }
+      platform_admin_claim_price_change_items: {
+        Args: { _batch_id: string; _limit?: number }
+        Returns: {
+          attempts: number
+          batch_id: string
+          claimed_at: string | null
+          compensation_attempts: number
+          completed_at: string | null
+          created_at: string
+          error_code: string | null
+          error_message: string | null
+          expected_external_reference: string | null
+          id: string
+          idempotency_key: string
+          item_type: string
+          last_http_status: number | null
+          next_retry_at: string | null
+          organization_id: string | null
+          preapproval_id: string | null
+          provider_mutation_kind: string | null
+          provider_mutation_started_at: string | null
+          provider_mutation_subscription_id: string | null
+          provider_mutation_subscription_updated_at: string | null
+          provider_response_ref: string | null
+          requires_compensation: boolean
+          status: string
+          subscription_id: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "subscription_price_change_items"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      platform_admin_complete_price_change_compensation: {
+        Args: {
+          _compensation_attempts: number
+          _complete_price_change: boolean
+          _expected_amount_ars: number
+          _expected_claimed_at: string
+          _expected_idempotency_key: string
+          _expected_preapproval_id: string
+          _expected_subscription_id: string
+          _expected_subscription_updated_at: string
+          _http_status: number
+          _item_id: string
+          _should_cancel: boolean
+        }
+        Returns: Json
+      }
+      platform_admin_complete_price_change_item: {
+        Args: {
+          _attempts: number
+          _expected_claimed_at: string
+          _expected_idempotency_key: string
+          _expected_preapproval_id: string
+          _http_status: number
+          _item_id: string
+          _provider_response_ref?: string
+        }
+        Returns: Json
+      }
+      platform_admin_create_price_change_batch: {
+        Args: {
+          _actor_user_id: string
+          _expected_amount_ars: number
+          _expected_price_version: number
+          _expected_updated_at: string
+          _new_amount_ars: number
+          _plan_code: string
+          _reason: string
+          _request_id: string
+        }
+        Returns: Json
+      }
+      platform_admin_refresh_price_change_batch: {
+        Args: { _batch_id: string }
+        Returns: Json
+      }
+      platform_admin_require_price_change_compensation: {
+        Args: {
+          _expected_claimed_at: string
+          _expected_idempotency_key: string
+          _expected_preapproval_id: string
+          _item_id: string
+          _reason: string
+        }
+        Returns: Json
+      }
+      platform_admin_retry_price_change_items: {
+        Args: { _batch_id: string; _item_ids?: string[] }
+        Returns: number
+      }
+      platform_admin_start_price_change_provider_mutation: {
+        Args: {
+          _expected_claimed_at: string
+          _expected_idempotency_key: string
+          _expected_preapproval_id: string
+          _expected_subscription_id: string
+          _expected_subscription_updated_at: string
+          _item_id: string
+          _mutation_kind: string
+        }
+        Returns: Json
+      }
       process_tareas_recurrentes: { Args: never; Returns: number }
       process_vencimientos_tareas: { Args: never; Returns: number }
       registrar_movimiento_stock: {
@@ -5050,6 +6036,90 @@ export type Database = {
         }
       }
       soft_delete_cliente: { Args: { _cliente_id: string }; Returns: undefined }
+      subscription_confirm_provider_reconciliation: {
+        Args: {
+          _expected_amount_ars: number
+          _expected_subscription_id: string
+          _expected_subscription_updated_at: string
+          _organization_id: string
+          _preapproval_id: string
+          _should_cancel: boolean
+        }
+        Returns: boolean
+      }
+      subscription_finalize_cancellation: {
+        Args: {
+          _cancelled_at: string
+          _expected_preapproval_id: string
+          _expected_subscription_updated_at: string
+          _metadata: Json
+          _organization_id: string
+          _subscription_id: string
+        }
+        Returns: Json
+      }
+      subscription_finalize_checkout: {
+        Args: {
+          _existing_subscription_id: string
+          _expected_amount_ars: number
+          _expected_plan_updated_at: string
+          _expected_price_version: number
+          _expected_subscription_updated_at: string
+          _external_reference: string
+          _init_point: string
+          _metadata: Json
+          _organization_id: string
+          _payer_email: string
+          _plan_code: string
+          _preapproval_id: string
+          _preserve_current_provider: boolean
+          _provider_status: string
+        }
+        Returns: Json
+      }
+      subscription_finalize_pending_plan_cancellation: {
+        Args: {
+          _current_plan_code: string
+          _expected_billing_amount_ars: number
+          _expected_current_preapproval_id: string
+          _expected_pending_preapproval_id: string
+          _expected_subscription_updated_at: string
+          _metadata: Json
+          _mode: string
+          _organization_id: string
+          _subscription_id: string
+        }
+        Returns: Json
+      }
+      subscription_finalize_reactivation: {
+        Args: {
+          _expected_amount_ars: number
+          _expected_plan_updated_at: string
+          _expected_preapproval_id: string
+          _expected_price_version: number
+          _expected_subscription_updated_at: string
+          _metadata: Json
+          _organization_id: string
+          _plan_code: string
+          _subscription_id: string
+        }
+        Returns: Json
+      }
+      subscription_finalize_scheduled_plan_change: {
+        Args: {
+          _expected_amount_ars: number
+          _expected_plan_updated_at: string
+          _expected_preapproval_id: string
+          _expected_price_version: number
+          _expected_subscription_updated_at: string
+          _from_plan_code: string
+          _metadata: Json
+          _organization_id: string
+          _subscription_id: string
+          _to_plan_code: string
+        }
+        Returns: Json
+      }
       sucursal_action_requires_pin: {
         Args: {
           _action_key: string
@@ -5165,12 +6235,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -5194,11 +6264,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -5219,11 +6289,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -5244,11 +6314,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -5261,11 +6331,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
