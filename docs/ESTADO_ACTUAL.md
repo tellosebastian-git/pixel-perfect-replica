@@ -2,6 +2,48 @@
 
 Última actualización: 2026-10-14
 
+## Programa de aliados — publicado y habilitado
+
+Publicados: entrada “Crear mi código” en Homepage, `/aliados`,
+`/aliados/panel` sin providers tenant, ingreso/alta/recuperación, código en signup,
+datos de cobro, niveles/progreso/comisiones, y `/admin/aliados` con convenios,
+verificación de titularidad, liquidaciones, comprobantes e incidencias.
+
+Motor: centavos exactos, snapshot de cotización para intro 10%, comisiones
+10/20/30% o convenio hasta 100%, calificación acumulada por dos ciclos, hold
+30 días y ajustes por reversión. Checkout tiene ruta promocional separada;
+webhook reanuda la etapa del aliado en duplicados ya procesados por billing.
+Worker: outbox durable, renovación al catálogo vigente con reconciliador CAS
+actual, lectura del pago real para devoluciones y liberación. Instagram retirado:
+sin conexión, niveles por audiencia ni refresh; datos antiguos privados.
+
+Excepción directa de DB/RLS y producción autorizada por el usuario. Cinco
+migraciones propias del primer rollout; revisión v2 suma una sexta migración
+de niveles por referidos. 20 tablas con RLS sin lectura cliente directa,
+funciones propias INVOKER, trigger Auth adaptado tras reportarlo y guard de hash.
+Cinco Edge Functions publicadas; cron periódico con Vault/HMAC y Auth allowlist
+configurados. Backend probado con rollback y Auth/API reales: cero fixtures
+persistentes, creador sin tenant/trial, código y panel funcionales. Alta abierta;
+Vercel Ready / Production / Current y Git original/fork sincronizados por avance
+normal. Instagram está retirado: niveles 1/2/3 por 0/5/20 barberías calificadas,
+con frasco de progreso, comunicación de ingresos para amigos/comunidades y
+condiciones desplegables. Correo Magic Link en español y con marca Vittro. Se corrigió el orden real de
+GoTrue con una intención privada de un uso, sin confiar en metadata de navegador.
+No hubo cargos ni transferencias. Evidencia vigente de la revisión:
+`docs/ALIADOS_NIVELES_REFERIDOS.md`; primer rollout: `docs/ALIADOS_PRODUCCION.md`.
+
+Evidencia local: 34 pruebas de dominio + 3 de acceso/recuperación UI, seis pruebas
+de barreras HTTP Deno sin permiso de red; build, lint focal y chequeo Deno de las
+cinco funciones involucradas.
+Regresión de la revisión aprobada: 207 Vitest, 32 Deno y 27 PostgreSQL/PGlite, incluidos los casos existentes.
+QA Playwright con tráfico remoto interceptado:
+11 escenarios: landing/panel/Admin a 390/768/1440px y correo a 390/680px,
+drawers e importes de
+$99.999.999 y $1.234.567.890 sin scroll horizontal ni errores de página. Artefactos
+en `.impeccable/review/partners/`, ejecutor `supabase/tests/partners-ui-qa.cjs`.
+TypeScript de app conserva cinco errores preexistentes documentados, sin errores
+nuevos de Aliados. Detalle y pendientes: `docs/MODULOS/aliados.md`.
+
 ## Notificaciones — Etapa 1 de seguridad
 
 **Implementada, validada localmente y APLICADA en el proyecto Supabase operativo — 2026-10-12**

@@ -45,7 +45,7 @@ interface AuthContextType {
   canViewTurnosAgenda: boolean;
   canViewClientes: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null; userId: string | null }>;
-  signUp: (email: string, password: string, fullName: string, businessName?: string, country?: string, plan?: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, fullName: string, businessName?: string, country?: string, plan?: string, referralCode?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   retrySessionRestore: () => Promise<void>;
@@ -252,7 +252,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
 
-  const signUp = async (email: string, password: string, fullName: string, businessName?: string, country?: string, plan?: string) => {
+  const signUp = async (email: string, password: string, fullName: string, businessName?: string, country?: string, plan?: string, referralCode?: string) => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -263,6 +263,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           business_name: businessName || 'Mi Barbería',
           country: country || 'AR',
           business_plan: (plan || 'basico').toLowerCase(),
+          ...(referralCode ? { referral_code: referralCode } : {}),
         }
       }
     });

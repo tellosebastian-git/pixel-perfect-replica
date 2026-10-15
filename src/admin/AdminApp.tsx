@@ -13,6 +13,7 @@ const AdminOrganizationDetailPage = lazy(() => import('@/admin/pages/AdminOrgani
 const AdminUsersPage = lazy(() => import('@/admin/pages/AdminUsersPage'));
 const AdminSubscriptionsPage = lazy(() => import('@/admin/pages/AdminSubscriptionsPage'));
 const AdminAuditPage = lazy(() => import('@/admin/pages/AdminAuditPage'));
+const AdminPartnersPage = lazy(() => import('@/admin/pages/AdminPartnersPage'));
 
 function AdminLoginRoute() {
   const { signIn, isLoading, issue, clearIssue } = useAdminAuth();
@@ -71,6 +72,7 @@ export default function AdminApp() {
           <Route path="usuarios" element={<AdminUsersPage />} />
           <Route path="suscripciones" element={<AdminSubscriptionsPage />} />
           <Route path="auditoria" element={<AdminAuditPage />} />
+          <Route path="aliados" element={<AdminPartnersPage />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Route>
       </Route>

@@ -3,6 +3,10 @@ project_id = "azqpyfoobpovqosbayvz"
 [functions.tareas-action]
 verify_jwt = true
 
+[auth.email.template.magic_link]
+subject = "Tu acceso a Vittro"
+content_path = "./supabase/templates/magic-link.html"
+
 [functions.soft-delete-sucursal]
 verify_jwt = true
 [functions.update-team-member-access]
@@ -62,3 +66,15 @@ verify_jwt = true
 
 [functions.platform-admin-organization]
 verify_jwt = true
+
+[functions.partner-program]
+# Public status/code/registration; all other actions validate identity in code.
+verify_jwt = false
+
+[functions.partner-instagram-callback]
+# One-use, short-lived OAuth state binds the callback to its enrolled actor.
+verify_jwt = false
+
+[functions.partner-program-worker]
+# Only the configured scheduler bearer secret is accepted in code.
+verify_jwt = false

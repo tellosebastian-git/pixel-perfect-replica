@@ -8,6 +8,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createAdminClient } from '../_shared/subscription-billing.ts';
 import { mpPlatformFetch, readMpError } from '../_shared/mp-client.ts';
+import { historicalPartnerPayment, observePartnerEvent, reconcilePartnerPayment } from '../_shared/partner-billing.ts';
 
 const webhookCorsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -949,14 +950,23 @@ async function syncAuthorizedPayment(
     );
   const scheduledAmount = finiteAmount(subscriptionMetadata.scheduled_renewal_amount_ars);
   const scheduledPriceVersion = positiveVersion(subscriptionMetadata.scheduled_renewal_price_version);
-  const scheduledRenewalMatchesStoredPrice = !isScheduledRenewal || (
+  // A late notification of the exact introductory payment is harmless after a
+  // renewal has been scheduled. It must remain older than the confirmed payment.
+  const recordedIntroPayment = paymentStatus === 'approved' && !isPendingCheckout &&
+      paidAt && subscription.last_payment_at &&
+      Date.parse(paidAt) <= Date.parse(subscription.last_payment_at) &&
+      amount !== (isScheduledRenewal ? scheduledAmount : finiteAmount(subscription.billing_amount_ars))
+    ? await historicalPartnerPayment(supabaseAdmin, { organizationId: subscription.organization_id,
+      authorizedPaymentId: String(authorizedPaymentId), preapprovalId: String(preapprovalId), amountArs: amount, currency: currencyId })
+    : false;
+  const scheduledRenewalMatchesStoredPrice = recordedIntroPayment || !isScheduledRenewal || (
     scheduledAmount !== null &&
     scheduledPriceVersion !== null &&
     amount > 0 &&
     amount === scheduledAmount &&
     currencyId === 'ARS'
   );
-  const currentRenewalMatchesStoredPrice = isPendingCheckout || isScheduledRenewal || (
+  const currentRenewalMatchesStoredPrice = isPendingCheckout || isScheduledRenewal || recordedIntroPayment || (
     finiteAmount(subscription.billing_amount_ars) !== null &&
     positiveVersion(subscription.billing_price_version) !== null &&
     amount > 0 &&
@@ -1330,6 +1340,14 @@ serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: 'Could not recover webhook event' }, 503);
     }
     if (existingEvent.processed_at) {
+      // Billing can have committed before the partner hook failed. A duplicate
+      // must finish that work instead of skipping a commission or its reversal.
+      try {
+        await observePartnerEvent(supabaseAdmin, existingEvent.id);
+        if (topic === 'payment') await reconcilePartnerPayment(supabaseAdmin, dataId);
+      } catch {
+        return jsonResponse({ error: 'Partner billing synchronization is pending' }, 503);
+      }
       return jsonResponse({ received: true, duplicate: true });
     }
     eventRowId = existingEvent.id;
@@ -1358,6 +1376,12 @@ serve(async (req: Request): Promise<Response> => {
 
   if (!synchronized) {
     return jsonResponse({ error: 'Webhook synchronization is pending' }, 503);
+  }
+  try {
+    if (eventRowId) await observePartnerEvent(supabaseAdmin, eventRowId);
+    if (topic === 'payment') await reconcilePartnerPayment(supabaseAdmin, dataId);
+  } catch {
+    return jsonResponse({ error: 'Partner billing synchronization is pending' }, 503);
   }
   return jsonResponse({ received: true });
 });

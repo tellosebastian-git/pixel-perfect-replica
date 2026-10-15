@@ -89,6 +89,13 @@ export default function AuthCallback() {
 
         const userId = user.id;
 
+        if (user.app_metadata?.account_kind === 'partner') {
+          localStorage.removeItem('pending_verification_email');
+          window.clearTimeout(slowTimer); window.clearTimeout(hardTimeout);
+          if (!cancelled) navigate('/aliados/panel', { replace: true });
+          return;
+        }
+
         // 4) Resolver organization (multi-tenant, sin hardcoded)
         const { data: profile, error: profileError } = await supabase
           .from('profiles')

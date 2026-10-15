@@ -1,0 +1,110 @@
+[
+  {
+    "scenario": "landing-1440",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "overflow": false,
+    "errors": [],
+    "synthetic": true
+  },
+  {
+    "scenario": "panel-1440",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "overflow": false,
+    "errors": [],
+    "synthetic": true
+  },
+  {
+    "scenario": "admin-1440",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "overflow": false,
+    "errors": [],
+    "synthetic": true
+  },
+  {
+    "scenario": "landing-390",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "overflow": false,
+    "errors": [],
+    "synthetic": true
+  },
+  {
+    "scenario": "panel-390",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "overflow": false,
+    "errors": [],
+    "synthetic": true
+  },
+  {
+    "scenario": "admin-390",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "overflow": false,
+    "errors": [],
+    "synthetic": true
+  },
+  {
+    "scenario": "landing-768",
+    "viewport": {
+      "width": 768,
+      "height": 1024
+    },
+    "overflow": false,
+    "errors": [],
+    "synthetic": true
+  },
+  {
+    "scenario": "panel-768",
+    "viewport": {
+      "width": 768,
+      "height": 1024
+    },
+    "overflow": false,
+    "errors": [],
+    "synthetic": true
+  },
+  {
+    "scenario": "admin-768",
+    "viewport": {
+      "width": 768,
+      "height": 1024
+    },
+    "overflow": false,
+    "errors": [],
+    "synthetic": true
+  },
+  {
+    "scenario": "email-680",
+    "viewport": {
+      "width": 680,
+      "height": 880
+    },
+    "overflow": false,
+    "synthetic": true
+  },
+  {
+    "scenario": "email-390",
+    "viewport": {
+      "width": 390,
+      "height": 880
+    },
+    "overflow": false,
+    "synthetic": true
+  }
+]

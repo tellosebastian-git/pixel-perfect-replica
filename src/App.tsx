@@ -20,6 +20,8 @@ import AuthCallback from "./pages/AuthCallback";
 import NotFound from "./pages/NotFound";
 import Reservar from "./pages/Reservar";
 import AdminApp from "@/admin/AdminApp";
+import Partners from './pages/Partners';
+import PartnerPanel from './pages/PartnerPanel';
 
 const queryClient = new QueryClient();
 
@@ -29,7 +31,7 @@ const queryClient = new QueryClient();
 // reacciona a la ruta: top-center en las páginas públicas (Homepage, Login,
 // Reservar) para no taparse con el banner de cookies fijo abajo; bottom-right
 // (el default de siempre) en el resto, incluida la app interna /app/:orgSlug.
-const PUBLIC_TOP_CENTER_ROUTES = [/^\/$/, /^\/login$/, /^\/[^/]+\/reservar$/];
+const PUBLIC_TOP_CENTER_ROUTES = [/^\/$/, /^\/login$/, /^\/aliados(?:\/|$)/, /^\/[^/]+\/reservar$/];
 
 function AppToaster() {
   const { pathname } = useLocation();
@@ -62,6 +64,8 @@ const App = () => (
       <BrowserRouter>
         <AppToaster />
         <Routes>
+          <Route path="/aliados" element={<Partners />} />
+          <Route path="/aliados/panel" element={<PartnerPanel />} />
           <Route
             path="/admin/*"
             element={

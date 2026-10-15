@@ -26,3 +26,7 @@ dist-ssr
 
 # Evidencia productiva de Admin: mantener capturas autenticadas solo localmente.
 .impeccable/review/admin-commercial/production-*.jpg
+# Aliados: el reporte sintético se versiona; capturas locales quedan fuera de Git.
+.impeccable/review/partners/*.png
+.impeccable/review/partners/*.jpg
+.impeccable/partner-management.local.ps1

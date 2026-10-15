@@ -21,6 +21,7 @@ const PLANS = [
 type PlanId = typeof PLANS[number]['id'];
 import { supabase } from '@/integrations/supabase/client';
 import { COUNTRIES } from '@/lib/dateUtils';
+import { callPartner, PartnerApiError } from '@/lib/partnerApi';
 
 
 export default function Login() {
@@ -49,6 +50,10 @@ export default function Login() {
   const [businessName, setBusinessName] = useState('');
   const [country, setCountry] = useState('AR');
   const [plan, setPlan] = useState<PlanId>('basico');
+  const [referralCode, setReferralCode] = useState(() => searchParams.get('ref') ?? '');
+  const [referralError, setReferralError] = useState('');
+  const linkedReferralCode = searchParams.get('ref') ?? '';
+  useEffect(() => { setReferralCode(linkedReferralCode); setReferralError(''); }, [linkedReferralCode]);
 
   useMetaPixel(import.meta.env.VITE_META_PIXEL_ID);
 
@@ -63,7 +68,7 @@ export default function Login() {
     if (loginAttemptRef.current && !waitingUserId) return;
     if (waitingUserId && waitingUserId !== user.id) return;
     perfEvent('postAuth:navigate', { userId: user.id });
-    navigate('/app/_', { replace: true });
+    navigate(user.app_metadata?.account_kind === 'partner' ? '/aliados/panel' : '/app/_', { replace: true });
   }, [mode, user, session, waitingUserId, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -109,6 +114,15 @@ export default function Login() {
       setIsLoading(false);
       return;
     }
+    setReferralError('');
+    let validatedReferral: string | undefined;
+    if (referralCode.trim()) {
+      if (country !== 'AR') {
+        setReferralError('El programa de aliados está disponible para Argentina.'); setIsLoading(false); return;
+      }
+      try { const result = await callPartner<{ code: string }>('validate_code', { code: referralCode }); validatedReferral = result.code; }
+      catch (error) { setReferralError(error instanceof PartnerApiError ? error.message : 'No pudimos verificar el código. Probá nuevamente.'); setIsLoading(false); return; }
+    }
     // Forzar cierre de sesión previa para que no se herede la org de otro usuario
     try {
       await supabase.auth.signOut();
@@ -119,7 +133,7 @@ export default function Login() {
     // Guardar email para la pantalla de verificación (limpiado tras éxito)
     localStorage.setItem('pending_verification_email', registerEmail);
 
-    const { error } = await signUp(registerEmail, registerPassword, registerName, businessName, country, plan);
+    const { error } = await signUp(registerEmail, registerPassword, registerName, businessName, country, plan, validatedReferral);
     if (error) {
       toast.error('Error al registrarse', { description: error.message });
       setIsLoading(false);
@@ -402,6 +416,11 @@ export default function Login() {
           {/* ── REGISTER FORM ── */}
           {mode === 'register' && (
             <form onSubmit={handleRegister} className="space-y-4 animate-in">
+              <div>
+                <Label htmlFor="referral-code" className="mb-1.5 block text-xs font-medium text-muted-foreground">Código de aliado (opcional)</Label>
+                <Input id="referral-code" value={referralCode} onChange={event => { setReferralCode(event.target.value); setReferralError(''); }} maxLength={20} autoCapitalize="characters" autoComplete="off" aria-invalid={Boolean(referralError)} aria-describedby={referralError ? 'referral-error' : 'referral-hint'} disabled={isLoading} />
+                {referralError ? <p id="referral-error" role="alert" className="mt-1 text-xs text-destructive">{referralError}</p> : <p id="referral-hint" className="mt-1 text-xs text-muted-foreground">10% de descuento en tu primer mes pagado. Se aplica únicamente al registrarte.</p>}
+              </div>
               <div>
                 <Label htmlFor="country" className="text-xs font-medium text-slate-600 mb-1.5 flex items-center gap-1">
                   <Globe size={12} /> País

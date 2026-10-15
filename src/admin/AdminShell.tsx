@@ -35,6 +35,7 @@ const NAV_GROUPS = [
     label: 'Control',
     items: [
       { to: '/admin/suscripciones', label: 'Suscripciones', icon: CreditCard },
+      { to: '/admin/aliados', label: 'Aliados', icon: Users },
       { to: '/admin/auditoria', label: 'Auditoría', icon: ScrollText },
     ],
   },

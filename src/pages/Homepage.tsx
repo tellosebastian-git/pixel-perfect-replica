@@ -741,6 +741,12 @@ export default function Homepage() {
       </section>
 
       {/* ── FOOTER ──────────────────────────────────────────────────────────── */}
+      <section className="border-t border-slate-200 bg-slate-50 px-4 py-10 sm:px-6">
+        <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-5 sm:flex-row sm:items-center">
+          <div><h2 className="text-lg font-medium">Generá ingresos recomendando Vittro</h2><p className="mt-2 max-w-xl text-sm text-slate-600">Compartí tu código de referidos con amigos o con tu comunidad. Cada barbería que empieza a pagar genera una comisión para vos.</p></div>
+          <Link to="/aliados" className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-primary px-5 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Crear mi código <ArrowRight size={15} /></Link>
+        </div>
+      </section>
       <footer className="border-t border-slate-100 py-6 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">

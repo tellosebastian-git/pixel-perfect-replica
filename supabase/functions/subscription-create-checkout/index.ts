@@ -6,6 +6,7 @@
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { partnerCheckoutQuote } from '../_shared/partner-billing.ts';
 import {
   corsHeaders,
   jsonResponse,
@@ -222,11 +223,11 @@ serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: 'Plan no encontrado' }, 404);
     }
 
-    const planAmount = Number(plan.amount_ars);
+    const catalogPlanAmount = Number(plan.amount_ars);
     const planPriceVersion = Number(plan.price_version);
     if (
-      !Number.isFinite(planAmount) ||
-      planAmount <= 0 ||
+      !Number.isFinite(catalogPlanAmount) ||
+      catalogPlanAmount <= 0 ||
       !Number.isInteger(planPriceVersion) ||
       planPriceVersion < 1
     ) {
@@ -245,6 +246,8 @@ serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: 'No se pudo cargar la suscripcion local' }, 500);
     }
 
+    const partnerQuote = await partnerCheckoutQuote(supabaseAdmin, context.userId, context.organizationId, plan);
+    const planAmount = partnerQuote?.amountArs ?? catalogPlanAmount;
     const previousPendingPreapprovalId = pendingPreapprovalId(existingSubscription);
     const previousPendingExternalReference = pendingExternalReference(existingSubscription);
     const shouldPreserveCurrentProviderReference =
@@ -257,6 +260,7 @@ serve(async (req: Request): Promise<Response> => {
       previousPendingPreapprovalId &&
       existingSubscription.mercadopago_init_point &&
       existingSubscription.pending_plan_code === plan.code &&
+      (!partnerQuote || asRecord(existingSubscription.metadata).pending_partner_quote_id === partnerQuote.id) &&
       sameAmount(existingSubscription.pending_checkout_amount_ars, planAmount) &&
       Number(existingSubscription.pending_checkout_price_version) === planPriceVersion
     );
@@ -362,6 +366,7 @@ serve(async (req: Request): Promise<Response> => {
       pending_mercadopago_external_reference: externalReference,
       pending_checkout_amount_ars: planAmount,
       pending_checkout_price_version: planPriceVersion,
+      pending_partner_quote_id: partnerQuote?.id ?? null,
     };
 
     if (shouldPreserveCurrentProviderReference) {
@@ -370,8 +375,9 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     const { data: savedData, error: saveError } = await supabaseAdmin.rpc(
-      'subscription_finalize_checkout',
+      partnerQuote ? 'partner_finalize_checkout' : 'subscription_finalize_checkout',
       {
+        ...(partnerQuote ? { _partner_quote_id: partnerQuote.id, _expected_catalog_amount_ars: catalogPlanAmount } : {}),
         _organization_id: context.organizationId,
         _plan_code: plan.code,
         _expected_amount_ars: planAmount,
