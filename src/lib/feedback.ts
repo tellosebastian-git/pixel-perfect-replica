@@ -14,9 +14,17 @@ interface FeedbackErrorOptions extends FeedbackOptions {
   retry?: { id: string; onRetry: () => void; label?: string };
 }
 
+interface FeedbackSuccessOptions extends FeedbackOptions {
+  /** Acción inmediata sobre lo que se acaba de hacer (ej. "Deshacer"). */
+  action?: { label: string; onClick: () => void };
+  /** Debe cubrir la ventana que permite el servidor para esa acción; el servidor sigue siendo quien decide. */
+  duration?: number;
+  id?: string;
+}
+
 /** Punto único de invocación de feedback transitorio sobre Sonner (único sistema visual de toasts). */
 export const feedback = {
-  success: (message: string, options?: FeedbackOptions) => toast.success(message, options),
+  success: (message: string, options?: FeedbackSuccessOptions) => toast.success(message, options),
   error: (message: string, options?: FeedbackErrorOptions) => {
     const { retry, ...rest } = options ?? {};
     toast.error(message, {

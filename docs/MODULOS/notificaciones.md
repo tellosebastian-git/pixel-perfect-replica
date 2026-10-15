@@ -20,6 +20,17 @@ Ver la tabla de productores y `docs/MODULOS/tareas.md`.
 
 ## Modelo: evento y entrega
 
+**BUILD 4A — cambio local, 2026-10-14, sin despliegue.** En barra lateral → campana
+(`src/hooks/useNotifications.ts`), las fuentes de Tareas se consultan por los IDs referenciados en
+las últimas 100 entregas, con organización y sucursal del contexto. Ya no se monta `useTareas`
+(`src/hooks/useTareas.ts`, carga de Principal → Tareas) desde la campana. Se mantienen catálogo,
+preferencias, lecturas, filtrado de fuentes terminadas/eliminadas y RLS de Notificaciones. Las fuentes
+de Tareas respetan además el alcance candidato de 4A (ver `docs/MODULOS/tareas.md`). La consulta
+acotada comparte el prefijo de invalidación `tareas`, por lo que las acciones del módulo refrescan
+también esas fuentes. No cambia el límite de entregas ni se agregan avisos semanales. Validación
+de consultas con cliente Supabase real y transporte simulado: `src/hooks/tareasReads.test.tsx`;
+QA autenticado pendiente. No implica despliegue.
+
 | Tabla | Qué representa | Quién escribe | Quién lee |
 |---|---|---|---|
 | `notifications` | El **evento**: título, cuerpo, `metadata` (montos, nombres), `sucursal_id`, `category`. Única por `(organization_id, event_key)`. | Solo las funciones `SECURITY DEFINER` que emiten (triggers, cron, `notif_emit_view_event`). | Solo quien tiene una **entrega propia** de ese evento. |

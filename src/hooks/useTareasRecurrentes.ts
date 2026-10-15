@@ -1,11 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { format } from 'date-fns';
+import { todayInTimezoneIso } from '@/lib/dateUtils';
+import { readAllTaskPages, taskCursorFilter, requireTaskBranch, mensajeTareas } from '@/lib/tareasData';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { useSucursal } from '@/contexts/SucursalContext';
 import { useAuth } from '@/contexts/AuthContext';
 import type { PausaMotivo } from '@/lib/tareasAutomaticas';
-import { toast } from 'sonner';
+import { feedback } from '@/lib/feedback';
 
 export interface TareaRecurrente {
   id: string;
@@ -63,21 +64,24 @@ export interface TareaRecurrenteUpdate {
   activo?: boolean;
 }
 
-export function useTareasRecurrentes() {
+/** `enabled = false` para quien no ve Tareas automáticas: la lista no se pide. */
+export function useTareasRecurrentes(enabled = true) {
   const { organization } = useOrganization();
-  const { currentSucursal } = useSucursal();
+  const { currentSucursal, isAllMode, isLoading: scopeLoading, error: scopeError, refreshSucursales } = useSucursal();
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: recetas = [], isLoading } = useQuery({
-    queryKey: ['tareas_recurrentes', organization?.id, currentSucursal?.id],
-    queryFn: async () => {
+  const canRead = enabled && !!organization?.id && !!user?.id && !scopeLoading && !scopeError && (!!currentSucursal || isAllMode);
+  const { data, isLoading, error, refetch, isFetching } = useQuery({
+    queryKey: ['tareas_recurrentes', organization?.id, user?.id, currentSucursal?.id],
+    queryFn: ({ signal }) => readAllTaskPages(async cursor => {
       if (!organization?.id) return [];
       let query = supabase
         .from('tareas_recurrentes')
         .select('*')
         .eq('organization_id', organization.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }).order('id', { ascending: false }).limit(500).abortSignal(signal);
+      if (cursor) query = query.or(taskCursorFilter(cursor));
 
       if (currentSucursal) {
         query = query.eq('sucursal_id', currentSucursal.id);
@@ -86,8 +90,8 @@ export function useTareasRecurrentes() {
       const { data, error } = await query;
       if (error) throw error;
       return (data ?? []) as TareaRecurrente[];
-    },
-    enabled: !!organization?.id,
+    }),
+    enabled: canRead,
   });
 
   const invalidateAll = () => {
@@ -100,6 +104,7 @@ export function useTareasRecurrentes() {
       if (!organization?.id || !user?.id) throw new Error('Falta organización o usuario');
       const sucursal_id = receta.sucursal_id ?? currentSucursal?.id ?? null;
       if (!sucursal_id) throw new Error('Seleccioná una sucursal para crear la tarea automática.');
+      await requireTaskBranch(organization.id, sucursal_id);
 
       const payload = {
         organization_id: organization.id,
@@ -126,9 +131,8 @@ export function useTareasRecurrentes() {
     },
     onSuccess: () => {
       invalidateAll();
-      toast.success('Tarea automática creada');
+      feedback.success('Tarea automática creada');
     },
-    onError: (e: Error) => toast.error(e.message),
   });
 
   const updateReceta = useMutation({
@@ -143,11 +147,11 @@ export function useTareasRecurrentes() {
         .eq('id', id);
       if (error) throw error;
     },
+    // El error lo muestra el formulario, que conserva lo cargado.
     onSuccess: () => {
       invalidateAll();
-      toast.success('Tarea automática actualizada');
+      feedback.success('Tarea automática actualizada');
     },
-    onError: (e: Error) => toast.error(e.message),
   });
 
   const toggleActivo = useMutation({
@@ -161,19 +165,21 @@ export function useTareasRecurrentes() {
     },
     onSuccess: (activo) => {
       invalidateAll();
-      toast.success(activo ? 'Tarea automática reanudada' : 'Tarea automática pausada');
+      feedback.success(activo ? 'Tarea automática reanudada' : 'Tarea automática pausada');
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => feedback.error(mensajeTareas(e, 'No pudimos cambiar el estado de la Tarea automática. Reintentá.')),
   });
 
   const deleteReceta = useMutation({
     mutationFn: async (id: string) => {
       // 1) Borrar tareas futuras pendientes asociadas a esta receta.
-      const today = format(new Date(), 'yyyy-MM-dd');
+      if (!organization?.id) throw new Error('Falta organización');
+      const today = todayInTimezoneIso(organization.timezone);
       const { error: childrenError } = await supabase
         .from('tareas')
         .delete()
         .eq('recurrencia_id', id)
+        .eq('organization_id', organization.id)
         .eq('estado', 'pendiente')
         .gte('fecha_inicio', today);
       if (childrenError) throw childrenError;
@@ -187,14 +193,18 @@ export function useTareasRecurrentes() {
     },
     onSuccess: () => {
       invalidateAll();
-      toast.success('Tarea automática eliminada');
+      feedback.success('Tarea automática eliminada');
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => feedback.error(mensajeTareas(e, 'No pudimos eliminar la Tarea automática. Reintentá.')),
   });
 
   return {
-    recetas,
-    isLoading,
+    recetas: canRead ? data ?? [] : [],
+    hasData: canRead && data !== undefined,
+    isLoading: enabled && (scopeLoading || (canRead && isLoading)),
+    error: scopeError || error,
+    isFetching,
+    refetch: () => scopeError ? refreshSucursales() : refetch(),
     addReceta,
     updateReceta,
     toggleActivo,

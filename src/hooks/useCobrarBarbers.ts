@@ -1,3 +1,4 @@
+import { BARBER_CLIENT_COLUMNS } from '@/lib/barberoColumns';
 import { useFinanceDemo } from '@/contexts/FinanceDemoContext';
 import type { OperationalReadOptions } from '@/hooks/useOperationalAccess';
 import { useCallback, useEffect } from 'react';
@@ -99,7 +100,7 @@ export function useCobrarBarbers(options: OperationalReadOptions = {}) {
 
       let q = supabase
         .from('barberos')
-        .select('*')
+        .select(BARBER_CLIENT_COLUMNS)
         .eq('organization_id', orgId)
         .eq('activo', true)
         .order('nombre');

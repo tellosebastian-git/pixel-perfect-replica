@@ -5,6 +5,19 @@ y QA autenticado en producción.
 
 ## Recorrido
 
+### PIN de acciones de Tareas — BUILD 4A local, sin despliegue
+
+Principal → Tareas (`src/hooks/useTareaAcciones.ts`, `supabase/functions/tareas-action/handler.ts`):
+las cuentas de sucursal confirman cada acción con PIN. La identidad de sesión se verifica con
+`auth.getUser()` y el actor del PIN se resuelve en servidor; no se acepta un UUID del navegador.
+La migración `supabase/migrations/20261014120000_tareas_acciones_controladas.sql` limita los intentos
+y cierra los permisos generales que permitían leer/escribir `barberos.pin_hash` desde el cliente.
+El resto de las columnas conserva sus permisos/RLS; el flujo servidor de configurar PIN no cambia.
+Cobrar/Equipo/Mi Negocio/Agenda excluyen el hash en sus consultas compartidas mediante
+`src/lib/barberoColumns.ts`; archivos y QA detallados en `docs/MODULOS/tareas.md`.
+Requiere coordinar una futura publicación con la migración y recarga de sesiones antiguas.
+No modifica la restauración de sesiones ni los límites del gateway descritos a continuación.
+
 - El cliente Supabase tenant usa `localStorage`, `persistSession: true` y
   `autoRefreshToken: true`. No comparte almacenamiento con el Admin.
 - `AuthProvider` toma `INITIAL_SESSION` como arranque único; los eventos

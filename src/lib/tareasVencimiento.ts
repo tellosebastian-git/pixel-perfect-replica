@@ -1,4 +1,4 @@
-import { parseISO, startOfDay, addDays, differenceInCalendarDays } from 'date-fns';
+import { calendarDayDifference, todayInTimezoneIso } from './dateUtils';
 
 export interface TareaVencInput {
   tipo: string;
@@ -13,25 +13,20 @@ export interface TareaVencInput {
  * Calcula vencimiento visual de una tarea interna.
  * Vencida = hoy > fecha_inicio + diasDefault
  */
-export function getTareaVencimiento(t: TareaVencInput, diasDefault: number) {
+export function getTareaVencimiento(t: TareaVencInput, diasDefault: number, timezone?: string | null, now = new Date()) {
   if (t.tipo !== 'tarea' || t.estado === 'completada' || !t.fecha_inicio) {
     return { vencida: false, diasRestantes: null as number | null };
   }
-  const inicio = startOfDay(parseISO(t.fecha_inicio));
-  const limite = addDays(inicio, Math.max(0, diasDefault));
-  const hoy = startOfDay(new Date());
-  const diasRestantes = differenceInCalendarDays(limite, hoy);
+  const diasRestantes = calendarDayDifference(t.fecha_inicio, todayInTimezoneIso(timezone, now)) + Math.max(0, diasDefault);
   return { vencida: diasRestantes < 0, diasRestantes };
 }
 
 /**
  * Calcula vencimiento visual de una petición (relativo a created_at).
  */
-export function getPeticionVencimiento(t: TareaVencInput, diasOrgDefault: number) {
+export function getPeticionVencimiento(t: TareaVencInput, diasOrgDefault: number, timezone?: string | null, now = new Date()) {
   const dias = t.vencimiento_dias ?? diasOrgDefault ?? 60;
-  const creado = startOfDay(parseISO(t.created_at));
-  const limite = addDays(creado, dias);
-  const hoy = startOfDay(new Date());
-  const diasRestantes = differenceInCalendarDays(limite, hoy);
+  const creado = todayInTimezoneIso(timezone, new Date(t.created_at));
+  const diasRestantes = calendarDayDifference(creado, todayInTimezoneIso(timezone, now)) + dias;
   return { vencida: diasRestantes < 0, diasRestantes };
 }

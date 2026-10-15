@@ -1,3 +1,4 @@
+import { BARBER_CLIENT_COLUMNS } from '@/lib/barberoColumns';
 import { useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -142,7 +143,7 @@ export const MiNegocioPanel = forwardRef<MiNegocioPanelHandle, MiNegocioPanelPro
     if (!organization?.id) return;
     const { data } = await supabase
       .from('barberos')
-      .select('*')
+      .select(BARBER_CLIENT_COLUMNS)
       .eq('organization_id', organization.id)
       .order('nombre');
     if (data) setAllBarbers(data.map(dbToBarberWithSucursal));

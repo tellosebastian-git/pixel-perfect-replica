@@ -1,3 +1,4 @@
+import { BARBER_CLIENT_COLUMNS } from '@/lib/barberoColumns';
 import { useFinanceDemo } from '@/contexts/FinanceDemoContext';
 import { useOperationalAccess, type OperationalReadOptions } from '@/hooks/useOperationalAccess';
 import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
@@ -237,7 +238,7 @@ export function useSupabaseData(options: OperationalReadOptions = {}) {
       if (!request.current()) return;
       const fetchedLines = linesData.map(dbToLine);
 
-      let barbersQuery = supabase.from('barberos').select('*').order('nombre');
+      let barbersQuery = supabase.from('barberos').select(BARBER_CLIENT_COLUMNS).order('nombre');
       if (sucursalId) {
         barbersQuery = barbersQuery.eq('sucursal_id', sucursalId);
       }
@@ -776,7 +777,7 @@ export function useSupabaseData(options: OperationalReadOptions = {}) {
             : (barber.teamRole === 'otros' ? ['otros'] : ['barber']),
           fecha_cobro_dia: barber.payDay || 1,
         })
-        .select()
+        .select(BARBER_CLIENT_COLUMNS)
         .single();
       if (error) throw error;
       const newBarber = dbToBarber(data);

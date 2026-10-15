@@ -3,7 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { useSucursal } from '@/contexts/SucursalContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
+import { feedback } from '@/lib/feedback';
+import { fetchTaskPage, readAllTaskPages, requireTaskBranch } from '@/lib/tareasData';
 
 export interface Tarea {
   id: string;
@@ -31,6 +32,10 @@ export interface Tarea {
   completada_por_id: string | null;
   completada_por_nombre: string | null;
   completada_at: string | null;
+  iniciada_por_id?: string | null;
+  iniciada_por_nombre?: string | null;
+  iniciada_at?: string | null;
+  accion_version?: string;
   /** Si viene de una Tarea automática, su id. La programación vive en la Tarea automática, no en esta tarea. */
   recurrencia_id: string | null;
   /** Cuándo pasó su fecha límite (una tarea `en_progreso` también puede quedar vencida). */
@@ -61,29 +66,15 @@ export interface TareaInsert {
 
 export function useTareas() {
   const { organization } = useOrganization();
-  const { currentSucursal } = useSucursal();
+  const { currentSucursal, sucursales, isAllMode, isLoading: scopeLoading, error: scopeError, refreshSucursales } = useSucursal();
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: tareas = [], isLoading } = useQuery({
-    queryKey: ['tareas', organization?.id, currentSucursal?.id],
-    queryFn: async () => {
-      if (!organization?.id) return [];
-      let query = supabase
-        .from('tareas')
-        .select('*')
-        .eq('organization_id', organization.id)
-        .order('created_at', { ascending: false });
-
-      if (currentSucursal) {
-        query = query.eq('sucursal_id', currentSucursal.id);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as Tarea[];
-    },
-    enabled: !!organization?.id,
+  const canRead = !!organization?.id && !!user?.id && !scopeLoading && !scopeError && (!!currentSucursal || isAllMode);
+  const { data, isLoading, error, refetch, isFetching, dataUpdatedAt } = useQuery({
+    queryKey: ['tareas', 'operativas', organization?.id, user?.id, currentSucursal?.id],
+    queryFn: ({ signal }) => readAllTaskPages(cursor => fetchTaskPage({ organizationId: organization!.id, sucursalId: currentSucursal?.id ?? null, signal }, cursor)),
+    enabled: canRead,
   });
 
   const addTarea = useMutation({
@@ -97,6 +88,11 @@ export function useTareas() {
       let sucursal_id = rest.sucursal_id ?? currentSucursal?.id ?? null;
 
       if (tarea.tipo === 'tarea') {
+        if (!sucursales.some(s => s.id === sucursal_id && s.organization_id === organization.id && s.activa)) {
+          throw new Error('Seleccioná una sucursal válida para crear la tarea.');
+        }
+        if (currentSucursal && sucursal_id !== currentSucursal.id) throw new Error('La sucursal cambió. Volvé a abrir el formulario.');
+        sucursal_id = await requireTaskBranch(organization.id, sucursal_id);
         if (!asignado_a_id) {
           assignment_scope = 'team';
           asignado_a_nombre = 'Todo el equipo';
@@ -138,7 +134,7 @@ export function useTareas() {
             created_by: user.id,
           });
         if (recetaErr) throw recetaErr;
-        return { automatica: true };
+        return { automatica: true, tipo: tarea.tipo };
       }
 
       const { error } = await supabase.from('tareas').insert({
@@ -154,14 +150,14 @@ export function useTareas() {
         recurrente: false,
       });
       if (error) throw error;
-      return { automatica: false };
+      return { automatica: false, tipo: tarea.tipo };
     },
+    // El error lo muestra el formulario, que conserva lo cargado; acá solo se confirma el éxito.
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['tareas'] });
       queryClient.invalidateQueries({ queryKey: ['tareas_recurrentes'] });
-      toast.success(result?.automatica ? 'Tarea automática creada' : 'Tarea creada');
+      feedback.success(result.automatica ? 'Tarea automática creada' : result.tipo === 'peticion' ? 'Petición creada' : 'Tarea creada');
     },
-    onError: (e: Error) => toast.error(e.message),
   });
 
   type TareaUpdate = {
@@ -185,27 +181,31 @@ export function useTareas() {
         payload.completada_por_id = user?.id ?? null;
         payload.completada_por_nombre = profile?.full_name || profile?.email || null;
       }
-      const { error } = await supabase.from('tareas').update(payload).eq('id', id);
+      if (!organization?.id) throw new Error('No hay organización activa.');
+      let query = supabase.from('tareas').update(payload).eq('organization_id', organization.id).eq('id', id);
+      // Internal task transitions are server actions; keep the existing petition workflow separate.
+      if (updates.estado !== undefined) query = query.eq('tipo', 'peticion');
+      const { error } = await query.select('id').single();
       if (error) throw error;
     },
+    // Éxito y error los comunica quien llama: el texto depende de si es una tarea o una petición.
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tareas'] });
-      toast.success('Tarea actualizada');
     },
-    onError: (e: Error) => toast.error(e.message),
   });
 
   const deleteTarea = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('tareas').delete().eq('id', id);
+      if (!organization?.id) throw new Error('No hay organización activa.');
+      const { error } = await supabase.from('tareas').delete().eq('organization_id', organization.id).eq('id', id).select('id').single();
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tareas'] });
-      toast.success('Tarea eliminada');
     },
-    onError: (e: Error) => toast.error(e.message),
   });
 
-  return { tareas, isLoading, addTarea, updateTarea, deleteTarea };
+  return { tareas: canRead ? data ?? [] : [], hasData: canRead && data !== undefined, isLoading: isLoading || scopeLoading,
+    error: scopeError || error, isFetching, dataUpdatedAt,
+    refetch: () => scopeError ? refreshSucursales() : refetch(), addTarea, updateTarea, deleteTarea };
 }

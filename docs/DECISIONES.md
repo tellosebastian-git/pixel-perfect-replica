@@ -5,6 +5,78 @@ ver `ESTADO_ACTUAL.md`. Para la especificación normativa vigente del sistema
 visual, ver `DESIGN.md` — este archivo no repite esa especificación, solo el
 contexto y el razonamiento detrás de cada decisión.
 
+## 2026-10-14 — BUILD 4B: Tareas como agenda semanal, no como grilla
+
+- **R1 sin segundo calendario.** 4B se detuvo porque 4A no exponía las ocurrencias futuras de Tareas automáticas
+  (el calendario del motor está cerrado a clientes y `proxima_fecha` es una sola fecha: no alcanza para una diaria).
+  Se aprobó una corrección final de 4A: `public.tareas_previstas` (INVOKER) sobre `tareas_private.previstas`
+  (DEFINER, solo para usar ese calendario), con el mismo alcance que la lectura de tareas, organización del perfil,
+  rango ≤ 14 días y nunca fechas pasadas ni ocurrencias ya creadas. El frontend no calcula fechas: las ubica.
+- **Índice del historial por evidencia.** Se ordena por `completada_at` (lo que el usuario entiende por historial).
+  El plan local con RLS mostró que cada página evaluaba la política sobre todas las completadas (1,6 s con 45.000;
+  el orden previo por `created_at` igual); un índice parcial lo deja en ~2 ms. Sin el plan no se habría agregado.
+- **Semana y progreso.** Lunes a domingo de la organización. El total solo incluye lo previsto para esa semana
+  (con fecha o Programado): sin fecha y pendientes anteriores quedan aparte para que el número no mienta ni castigue
+  la semana actual por deudas de otra; lo atrasado se ve igual, arriba, en Necesitan atención.
+- **`TareaFila` en lugar de `RecordRow`.** `RecordRow` mantiene las acciones siempre al costado: a 375 px dos
+  acciones con texto dejaban al título ~140 px. La fila de Tareas deja bajar las acciones por espacio real
+  (layout intrínseco) y encapsula estados propios (vencida, en progreso + vencida, Programada, completada).
+- **Completar con un círculo.** Es la acción más frecuente y el patrón de lista de tareas más reconocible; tiene
+  nombre accesible y un deshacer de servidor de 30 s como red. Iniciar queda como botón con texto porque es menos
+  frecuente; Editar/Eliminar al `⋯` para que no compitan.
+- **Un formulario.** Tarea y Tarea automática comparten campos; la repetición decide el modo dentro del mismo
+  `DrawerForm` (sin diálogo extra). Editar una ocurrencia nunca toca la receta. `RepeatPicker`/`CustomRepeatSheet` se
+  conservan porque los usan Gastos y Bono fijo (D54).
+- **Mis tareas | Negocio solo cuando significa algo.** Aparece para supervisores con integrante vinculado; “mías”
+  incluye las de equipo de las sucursales con pertenencia estructural (misma regla que 4A). La elección se guarda en
+  el dispositivo por usuario + organización: es una comodidad, no un permiso.
+- **QA visual sin sesión.** No había sesión autenticada usable: se agregó un arnés local con datos sintéticos
+  (`qa/tareas.html`, fuera del build, mismo criterio que `qa/admin-commercial`). No reemplaza el QA autenticado.
+
+## 2026-10-14 — BUILD 4A: datos operativos, seguridad y permisos en el mismo build
+
+- No existe BUILD 4A-2. Se conserva `codex/tareas-4a-1` como nombre histórico de la rama de trabajo.
+- **Principal → Tareas → acciones** (`supabase/migrations/20261014120000_tareas_acciones_controladas.sql`):
+  excepción local explícita a AGENTS para SQL/RLS y SECURITY DEFINER, únicamente en schema privado.
+  Entradas públicas INVOKER, EXECUTE mínimo, autorización interna y versiones/bloqueo por fila.
+  La entrada PIN es solo para servidor; deriva identidad del token y del PIN, nunca de UUID del navegador.
+- **Principal → Tareas → PIN / Deshacer** (`supabase/functions/tareas-action/handler.ts`,
+  `src/hooks/useTareaAcciones.ts`): verificación y escritura en la misma acción; 30 segundos para
+  deshacer por quien completó, conservando estado previo y rechazando cambios posteriores.
+- **Principal → Tareas / Tareas automáticas → alcance Manager** (misma migración): vínculo real
+  `user_sucursales` con organización/sucursal, sin ampliar alcance por un rol Barber adicional.
+  Cuenta de sucursal no obtiene edición administrativa aunque tenga un rol adicional.
+- Generación de tipos local por introspección oficial, sin firmas manuales:
+  `supabase/tests/tareas-generate-types.mjs`, contrato de `src/integrations/supabase/types.ts`.
+- Dependencia de seguridad del PIN: el permiso efectivo de tabla exponía y permitía escribir
+  `barberos.pin_hash` pese a una revocación histórica por columna. La misma migración 4A conserva
+  los grants previos de otras columnas y retira el hash del cliente. Cobrar, carga de Equipo, Mi Negocio,
+  comisión de equipo y Agenda usan `src/lib/barberoColumns.ts` en sus cinco consumidores documentados
+  en `docs/MODULOS/tareas.md`; no cambian filtros ni cálculos. Publicar requerirá coordinar frontend,
+  migración y recarga de pestañas antiguas. No se leyeron hashes ni se cambiaron PIN reales.
+- Build completo y validado localmente: 43 SQL de acciones, 12 mutaciones nuevas detectadas y
+  regresión de Etapas 1–3/frontend. Sin despliegue, sin 4B/4C.
+
+- **Principal → Tareas** (`src/hooks/useTareas.ts`, `src/lib/tareasData.ts`): cursor compuesto
+  `created_at,id` para paginar con orden estable. Se sigue hasta una página vacía, sin asumir que
+  el límite del servidor coincide con el tamaño solicitado. Una falla intermedia invalida la carga
+  completa en vez de presentar una fracción como lista total. Se conservan filtros y contadores locales.
+- **Principal → Tareas → Historial** (`src/hooks/useTareasHistorial.ts`): consulta separada bajo demanda,
+  filtrada en servidor antes de paginar. Se informa cantidad cargada, sin inventar un total histórico.
+- **Principal → Tareas → responsables** (`src/hooks/useTareaResponsables.ts`): carga específica por
+  pertenencia estructural, reutilizando `sostienePertenencia` de `src/lib/tareasAutomaticas.ts`.
+  No se cambia la semántica de `src/hooks/useSupabaseData.ts`, compartido por otras pantallas;
+  solo su proyección excluye el hash por la dependencia de PIN mencionada. Tampoco se usa
+  disponibilidad diaria como pertenencia.
+- **Principal → Tareas → Nueva/Editar** (`src/components/tareas/TareaFormDialog.tsx`,
+  `src/components/tareas/TareaRecurrenteFormDialog.tsx`): sucursal activa obligatoria al crear;
+  no agregar ese bloqueo a edición de registros existentes. El guardado conserva contenido si falla.
+- **Barra lateral → campana** (`src/hooks/useNotifications.ts`): resolver solo fuentes de las entregas
+  cargadas conserva la vigencia de avisos sin depender de toda la lista de Tareas. Misma sesión y RLS,
+  filtros explícitos de organización/sucursal y caché por contexto. Sin nuevos avisos ni cambios
+  de permisos en las tablas de Notificaciones.
+- Implementación local, sin despliegue. El detalle y el QA pendiente viven en `docs/MODULOS/tareas.md`.
+
 ## Tareas: reset pre-lanzamiento con backup interno verificado (Etapa 3) — 2026-10-13
 
 Qué se decidió y por qué (operación y resultados en `docs/MODULOS/tareas.md`; scripts en

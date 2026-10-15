@@ -130,6 +130,24 @@ export function formatDateForQuery(date: Date): string {
 /** Mismo respaldo que usa la base cuando `organizations.timezone` falta o no es válida (`_tareas_auto_hoy`). */
 const TIMEZONE_RESPALDO = 'America/Argentina/Buenos_Aires';
 
+/** Día civil, sin conversión a la zona del dispositivo. */
+export function calendarDayDifference(date: string, reference: string): number {
+  return (Date.parse(`${date}T00:00:00Z`) - Date.parse(`${reference}T00:00:00Z`)) / 86_400_000;
+}
+
+export function formatCalendarDate(date: string): string {
+  return new Intl.DateTimeFormat('es', { timeZone: 'UTC', day: '2-digit', month: 'short' }).format(new Date(`${date}T00:00:00Z`));
+}
+
+export function formatTimestampInTimezone(value: string, timezone?: string | null, includeTime = true): string {
+  const options: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short', year: 'numeric', ...(includeTime ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } as const : {}) };
+  try {
+    return new Intl.DateTimeFormat('es', { ...options, timeZone: timezone || TIMEZONE_RESPALDO }).format(new Date(value));
+  } catch {
+    return new Intl.DateTimeFormat('es', { ...options, timeZone: TIMEZONE_RESPALDO }).format(new Date(value));
+  }
+}
+
 /**
  * "Hoy" (YYYY-MM-DD) en la zona horaria de la organización, NO en la del navegador.
  * Es el mismo día que calcula la base con `organizations.timezone` para Tareas automáticas

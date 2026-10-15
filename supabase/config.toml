@@ -1,5 +1,8 @@
 project_id = "azqpyfoobpovqosbayvz"
 
+[functions.tareas-action]
+verify_jwt = true
+
 [functions.soft-delete-sucursal]
 verify_jwt = true
 [functions.update-team-member-access]

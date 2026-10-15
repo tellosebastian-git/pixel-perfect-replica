@@ -1,3 +1,4 @@
+import { BARBER_CLIENT_COLUMNS } from '@/lib/barberoColumns';
 import { useState, useEffect, useCallback } from 'react';
 import { Building2, CalendarClock } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -81,7 +82,7 @@ export function TurnosAgendaPanel({ onNavigateToHorarios }: TurnosAgendaPanelPro
     }
     const { data } = await supabase
       .from('barberos')
-      .select('*')
+      .select(BARBER_CLIENT_COLUMNS)
       .eq('organization_id', organization.id)
       .eq('activo', true)
       .order('nombre');

@@ -1,193 +1,157 @@
-import { useMemo, useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { ArrowLeft, Plus, Repeat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useDelayedVisible } from '@/hooks/useDelayedVisible';
+import { SkeletonRow } from '@/components/ui/SkeletonRow';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Repeat } from 'lucide-react';
+import { useDelayedVisible } from '@/hooks/useDelayedVisible';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSucursal } from '@/contexts/SucursalContext';
-import { useTareasRecurrentes, TareaRecurrente } from '@/hooks/useTareasRecurrentes';
-import { Barber } from '@/types/barbershop';
-import { RecurrenteCard } from './RecurrenteCard';
-import { TareaRecurrenteFormDialog } from './TareaRecurrenteFormDialog';
+import { useRequirePinForAction } from '@/components/ActionPinGate';
+import type { TareaRecurrente, useTareasRecurrentes } from '@/hooks/useTareasRecurrentes';
 import { CountdownConfirm } from '@/components/CountdownConfirm';
+import { RecurrenteFila, type UltimaOcurrencia } from './RecurrenteFila';
+import { ListaTareas } from './TareasSeccion';
+import { TareasLoadError } from './TareasLoadError';
 
 interface Props {
-  barbers: Barber[];
-  onClose?: () => void;
+  recurrentes: ReturnType<typeof useTareasRecurrentes>;
+  today: string;
+  onVolver: () => void;
+  /** Abre el formulario compartido directamente en modo Tarea automática. */
+  onNueva?: () => void;
+  onEditar: (receta: TareaRecurrente) => void;
+  /** Tarea automática a mostrar (desde "Ver Tarea automática" de una tarea). */
+  focoId?: string | null;
+  ultimaOcurrencia?: (recurrenciaId: string) => UltimaOcurrencia | null;
 }
 
-export function RecurrentesPanel({ barbers, onClose }: Props) {
+/**
+ * Tareas → Tareas automáticas: subvista de configuración. Las automáticas generan tareas comunes en la
+ * lista de Tareas; acá se crean, se pausan, se editan y se eliminan.
+ */
+export function RecurrentesPanel({ recurrentes, today, onVolver, onNueva, onEditar, focoId, ultimaOcurrencia }: Props) {
   const { isOwner, isGeneralManager, isManager, isSucursalAccount } = useAuth();
   const { currentSucursal, sucursales } = useSucursal();
-  const { recetas, isLoading, addReceta, updateReceta, toggleActivo, deleteReceta } = useTareasRecurrentes();
-  const showSkeleton = useDelayedVisible(isLoading);
+  const requirePinForAction = useRequirePinForAction();
+  const { recetas, hasData, isLoading, error, refetch, isFetching, toggleActivo, deleteReceta } = recurrentes;
+  const showSkeleton = useDelayedVisible(isLoading && !hasData);
 
   const canManageTareas = isOwner || isGeneralManager || isManager;
-  const canDelete = canManageTareas; // sucursal_account no tiene RLS de DELETE
-  const showSucursalFilter = !currentSucursal && sucursales.length > 1;
+  const puedeGestionar = canManageTareas || isSucursalAccount;
+  const multiSucursal = !currentSucursal && sucursales.length > 1;
 
-  const [activeSubTab, setActiveSubTab] = useState<'active' | 'inactive'>('active');
-  const [filtroSucursal, setFiltroSucursal] = useState<string>('todas');
-  const [showForm, setShowForm] = useState(false);
-  const [editingReceta, setEditingReceta] = useState<TareaRecurrente | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<TareaRecurrente | null>(null);
+  const foco = focoId ? recetas.find(r => r.id === focoId) : undefined;
+  const [segmento, setSegmento] = useState<'active' | 'inactive'>(foco && !foco.activo ? 'inactive' : 'active');
+  const [filtroSucursal, setFiltroSucursal] = useState('todas');
+  const [confirmarEliminar, setConfirmarEliminar] = useState<TareaRecurrente | null>(null);
 
-  const sucursalNombre = (id: string | null) =>
-    id ? (sucursales.find(s => s.id === id)?.nombre ?? null) : null;
+  useEffect(() => {
+    if (!foco) return;
+    setSegmento(foco.activo ? 'active' : 'inactive');
+    setFiltroSucursal('todas');
+    requestAnimationFrame(() => document.getElementById(`automatica-${foco.id}`)?.scrollIntoView({ block: 'center' }));
+  }, [foco?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const matchesSucursal = (r: TareaRecurrente) => {
-    if (!showSucursalFilter || filtroSucursal === 'todas') return true;
-    return r.sucursal_id === filtroSucursal;
+  const sucursalesConAutomaticas = useMemo(() => new Set(recetas.map(r => r.sucursal_id)), [recetas]);
+  // El filtro de sucursal solo aporta si el contexto abarca varias y hay automáticas en más de una.
+  const muestraFiltro = multiSucursal && sucursalesConAutomaticas.size > 1;
+  const visibles = recetas.filter(r => !muestraFiltro || filtroSucursal === 'todas' || r.sucursal_id === filtroSucursal);
+  const activas = visibles.filter(r => r.activo);
+  const pausadas = visibles.filter(r => !r.activo);
+  const lista = segmento === 'active' ? activas : pausadas;
+  const sucursalNombre = (id: string) => (multiSucursal ? sucursales.find(s => s.id === id)?.nombre ?? null : null);
+
+  const conPin = async (receta: TareaRecurrente, run: () => void) => {
+    if (isSucursalAccount) {
+      const gate = await requirePinForAction('editar_tarea', receta.sucursal_id ?? null);
+      if (gate.ok !== true) return;
+    }
+    run();
   };
 
-  const filtered = useMemo(() => recetas.filter(matchesSucursal), [recetas, filtroSucursal, showSucursalFilter]);
-  const activas = filtered.filter(r => r.activo);
-  const pausadas = filtered.filter(r => !r.activo);
+  const cabecera = (
+    <div className="space-y-3">
+      <Button type="button" variant="ghost" size="sm" className="-ml-2 text-muted-foreground" onClick={onVolver}>
+        <ArrowLeft aria-hidden />Volver a Tareas
+      </Button>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          <h2 className="text-lg font-medium text-foreground">Tareas automáticas</h2>
+          <p className="text-sm text-muted-foreground">Configuralas una vez y Vittro crea cada tarea en su fecha.</p>
+        </div>
+        {onNueva && <Button type="button" onClick={onNueva}><Plus aria-hidden />Nueva Tarea automática</Button>}
+      </div>
+    </div>
+  );
 
-
-  const handleEdit = (r: TareaRecurrente) => {
-    setEditingReceta(r);
-    setShowForm(true);
-  };
-
-  const handleToggle = (r: TareaRecurrente) => {
-    toggleActivo.mutate({ id: r.id, activo: !r.activo });
-  };
-
-  const handleDelete = (r: TareaRecurrente) => {
-    setConfirmDelete(r);
-  };
-
-  const confirmDeleteAction = () => {
-    if (!confirmDelete) return;
-    deleteReceta.mutate(confirmDelete.id);
-    setConfirmDelete(null);
-  };
-
-  if (isLoading) {
-    if (!showSkeleton) return null;
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-9 w-56 sm:ml-auto sm:max-w-xs" />
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i}>
-              <CardContent className="p-4 space-y-3">
-                <Skeleton className="h-4 w-2/3" />
-                <Skeleton className="h-3 w-full" />
-                <Skeleton className="h-3 w-1/3" />
-              </CardContent>
-            </Card>
-          ))}
+  let contenido: ReactNode;
+  if (isLoading && !hasData) {
+    contenido = showSkeleton ? (
+      <ListaTareas>
+        {Array.from({ length: 4 }).map((_, i) => <li key={i} className="px-3 py-3 sm:px-4"><SkeletonRow /></li>)}
+      </ListaTareas>
+    ) : null;
+  } else if (error && !hasData) {
+    contenido = <TareasLoadError subject="las Tareas automáticas" retry={refetch} pending={isFetching} />;
+  } else if (recetas.length === 0) {
+    contenido = (
+      <div className="rounded-xl border border-border bg-card py-12 shadow-sm">
+        <EmptyState icon={Repeat} title="Todavía no hay Tareas automáticas"
+          description="Configurala una vez y Vittro la vuelve a crear en cada fecha: la limpieza del local, la reposición de insumos o el cierre del día."
+          action={onNueva ? <Button type="button" onClick={onNueva}><Plus aria-hidden />Nueva Tarea automática</Button> : undefined} />
+      </div>
+    );
+  } else {
+    contenido = (
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <SegmentedControl ariaLabel="Estado de las Tareas automáticas" className="sm:max-w-xs" value={segmento}
+            onChange={v => setSegmento(v as 'active' | 'inactive')}
+            options={[{ value: 'active', label: 'Activas', count: activas.length }, { value: 'inactive', label: 'Pausadas', count: pausadas.length }]} />
+          {muestraFiltro && (
+            <Select value={filtroSucursal} onValueChange={setFiltroSucursal}>
+              <SelectTrigger className="h-9 w-full sm:w-[12rem]" aria-label="Sucursal"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas las sucursales</SelectItem>
+                {sucursales.filter(s => sucursalesConAutomaticas.has(s.id)).map(s => <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+        <div role="tabpanel" aria-label={segmento === 'active' ? 'Tareas automáticas activas' : 'Tareas automáticas pausadas'}>
+          {lista.length === 0 ? (
+            <p className="px-1 py-2 text-sm text-muted-foreground">
+              {segmento === 'active' ? 'No hay Tareas automáticas activas.' : 'No hay Tareas automáticas pausadas.'}
+            </p>
+          ) : (
+            <ListaTareas>
+              {lista.map(r => (
+                <RecurrenteFila key={r.id} receta={r} today={today} sucursalNombre={sucursalNombre(r.sucursal_id)} ultima={ultimaOcurrencia?.(r.id)}
+                  puedeGestionar={puedeGestionar} puedeEliminar={canManageTareas} destacada={r.id === focoId}
+                  alternando={toggleActivo.isPending && toggleActivo.variables?.id === r.id}
+                  onEditar={() => void conPin(r, () => onEditar(r))}
+                  onAlternar={() => void conPin(r, () => toggleActivo.mutate({ id: r.id, activo: !r.activo }))}
+                  onEliminar={() => setConfirmarEliminar(r)} />
+              ))}
+            </ListaTareas>
+          )}
         </div>
       </div>
     );
   }
 
-  const renderList = (list: TareaRecurrente[], emptyLabel: string, emptyHint: string) => {
-    if (list.length === 0) {
-      return (
-        <Card>
-          <CardContent className="py-12">
-            <EmptyState icon={Repeat} title={emptyLabel} description={emptyHint} />
-          </CardContent>
-        </Card>
-      );
-    }
-    return (
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
-        {list.map(r => (
-          <RecurrenteCard
-            key={r.id}
-            receta={r}
-            sucursalNombre={sucursalNombre(r.sucursal_id)}
-            canManage={canManageTareas || isSucursalAccount}
-            canDelete={canDelete}
-            isSucursalAccount={isSucursalAccount}
-            onEdit={handleEdit}
-            onToggle={handleToggle}
-            onDelete={handleDelete}
-          />
-        ))}
-      </div>
-    );
-  };
-
   return (
-    <div className="space-y-4">
-      {showSucursalFilter && (
-        <Select value={filtroSucursal} onValueChange={setFiltroSucursal}>
-          <SelectTrigger className="w-[180px] h-9"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todas">Todas las sucursales</SelectItem>
-            {sucursales.map(s => <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      )}
-
-      <div className="flex flex-wrap items-center gap-3">
-        {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />Volver a tareas
-          </button>
-        )}
-
-        <SegmentedControl
-          ariaLabel="Estado de las tareas automáticas"
-          className="sm:ml-auto sm:max-w-xs"
-          options={[
-            { value: 'active', label: 'Activas', count: activas.length },
-            { value: 'inactive', label: 'Pausadas', count: pausadas.length },
-          ]}
-          value={activeSubTab}
-          onChange={(v) => setActiveSubTab(v as 'active' | 'inactive')}
-        />
-      </div>
-
-      {activeSubTab === 'active' ? (
-        <div role="tabpanel" aria-label="Tareas automáticas activas" className="mt-4">
-          {renderList(
-            activas,
-            'No hay tareas automáticas activas',
-            canManageTareas
-              ? 'Para crear una, usá "Nueva tarea" y elegí una repetición: la tarea se genera sola en cada fecha.'
-              : 'Cuando se creen tareas automáticas, vas a poder verlas acá.',
-          )}
-        </div>
-      ) : (
-        <div role="tabpanel" aria-label="Tareas automáticas pausadas" className="mt-4">
-          {renderList(
-            pausadas,
-            'No hay tareas automáticas pausadas',
-            'Las tareas automáticas pausadas dejan de generar tareas hasta que se reanuden.',
-          )}
-        </div>
-      )}
-
-      <TareaRecurrenteFormDialog
-        open={showForm}
-        onOpenChange={(o) => { setShowForm(o); if (!o) setEditingReceta(null); }}
-        barbers={barbers}
-        receta={editingReceta}
-        onSubmit={(data) => addReceta.mutate(data)}
-        onUpdate={(patch) => updateReceta.mutate(patch)}
-        isPending={addReceta.isPending || updateReceta.isPending}
-      />
-
+    <div className="space-y-5">
+      {cabecera}
+      {contenido}
       <CountdownConfirm
-        open={!!confirmDelete}
-        onOpenChange={(o) => { if (!o) setConfirmDelete(null); }}
-        onConfirm={confirmDeleteAction}
-        title="Eliminar tarea automática"
-        description="Se eliminará la tarea automática y todas las tareas futuras pendientes asociadas. Las tareas ya generadas en el pasado no se tocan. Esta acción no se puede deshacer."
+        open={!!confirmarEliminar}
+        onOpenChange={open => { if (!open) setConfirmarEliminar(null); }}
+        onConfirm={() => { if (confirmarEliminar) deleteReceta.mutate(confirmarEliminar.id); setConfirmarEliminar(null); }}
+        title={`Eliminar «${confirmarEliminar?.titulo ?? 'Tarea automática'}»`}
+        description="Vittro deja de crear esta tarea. Si hoy ya creó la tarea del día y sigue pendiente, también se elimina. Las tareas de días anteriores, las iniciadas y las completadas se conservan. No se puede deshacer."
       />
     </div>
   );

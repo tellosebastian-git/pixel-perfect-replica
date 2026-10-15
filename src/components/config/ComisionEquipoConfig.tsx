@@ -1,3 +1,4 @@
+import { BARBER_CLIENT_COLUMNS } from '@/lib/barberoColumns';
 import { useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -98,7 +99,7 @@ export function ComisionEquipoConfig({ barberId, organizationId, sucursalId, all
   const fetchFilteredBarbers = useCallback(async (scopeType: string, configSucursalId: string | null) => {
     let query = supabase
       .from('barberos')
-      .select('*')
+      .select(BARBER_CLIENT_COLUMNS)
       .eq('organization_id', organizationId)
       .eq('activo', true)
       .neq('id', barberId);

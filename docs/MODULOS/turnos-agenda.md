@@ -2,6 +2,11 @@
 
 ## Estructura de pestañas
 
+BUILD 4A de Tareas (cambio local, sin despliegue): Turnos → Agenda conserva su carga/filtros de
+integrantes en `src/components/TurnosAgendaPanel.tsx`, pero solicita campos explícitos mediante
+`src/lib/barberoColumns.ts`, excluyendo el hash del PIN. Es compatibilidad con la protección de esa
+columna del mismo build; no modifica agenda ni configuración. Detalle y QA en `docs/MODULOS/tareas.md`.
+
 Nivel 1: Agenda | Configuración (título superior dinámico: "Turnos" en
 Agenda, "Configuración" en la otra).
 

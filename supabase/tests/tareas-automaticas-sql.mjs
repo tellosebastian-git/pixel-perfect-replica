@@ -55,7 +55,7 @@ const MUTATIONS = [
 ];
 const MUT = process.env.MUTATION !== undefined ? MUTATIONS[Number(process.env.MUTATION)] : null;
 
-if (process.argv.includes('--mutation-check')) {
+if (!process.env.TAREAS_FIXTURE_ONLY && process.argv.includes('--mutation-check')) {
   let survived = 0;
   for (const [i, m] of MUTATIONS.entries()) {
     const run = spawnSync(process.execPath, [fileURLToPath(import.meta.url)], { env: { ...process.env, MUTATION: String(i) }, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
@@ -260,8 +260,8 @@ async function asOwner(db, sql) {
   await db.transaction(async tx => { await tx.exec('SET LOCAL ROLE app_owner'); await tx.exec(sql); });
 }
 /** Builds the production shape. `stage`: 'base' (before Etapa 1), 'e1', then 'm1'..'m4' (cumulative Etapa 2). */
-async function build(stage = 'm5') {
-  const db = await PGlite.create();
+async function build(stage = 'm5', database) {
+  const db = database ?? await PGlite.create();
   await db.exec(SETUP);
   await asOwner(db, SCHEMA);
   await asOwner(db, extractFunction(await mig('20260109143656'), 'has_role'));
@@ -380,6 +380,8 @@ const notifCount = (tx, type) => val(tx, `SELECT count(*)::int FROM notification
 // =========================================================================================================
 // PHASE 1 - BASELINE (production today, with Etapa 1 applied): the defects Etapa 2 fixes.
 // =========================================================================================================
+export { build, seedWorld, W, asOwner };
+if (!process.env.TAREAS_FIXTURE_ONLY) {
 db = await build('e1');
 await seedWorld(db);
 
@@ -1550,3 +1552,4 @@ await e3.close();
 
 console.log(`${passed} SQL integration tests passed (local synthetic PostgreSQL, no production access).`);
 await db.close();
+}

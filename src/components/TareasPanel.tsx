@@ -1,643 +1,566 @@
-import { useMemo, useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { AlertTriangle, CalendarClock, CheckCircle2, ChevronDown, ClipboardList, History, Inbox, ListChecks, Plus, Repeat, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useDelayedVisible } from '@/hooks/useDelayedVisible';
+import { SkeletonRow } from '@/components/ui/SkeletonRow';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { TabBadge } from '@/components/ui/TabBadge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useTareas } from '@/hooks/useTareas';
-import {
-  Plus, Trash2, CheckCircle, Clock, XCircle, RefreshCw, AlertTriangle,
-  Users, User, MapPin, CalendarDays, Repeat, Inbox, ChartSpline, ArrowLeft, Pencil, ListChecks, ClipboardList,
-} from 'lucide-react';
-import { format, differenceInDays } from 'date-fns';
-import { es } from 'date-fns/locale';
-import { Barber, getBarberDisplayName } from '@/types/barbershop';
-import { TareaFormDialog } from './tareas/TareaFormDialog';
-import { RecurrentesPanel } from './tareas/RecurrentesPanel';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { useDelayedVisible } from '@/hooks/useDelayedVisible';
+import { useTareas, type Tarea } from '@/hooks/useTareas';
+import { useTareasRecurrentes } from '@/hooks/useTareasRecurrentes';
+import { useTareasSemana } from '@/hooks/useTareasSemana';
+import { useTareaResponsables, useSucursalesDeIntegrante } from '@/hooks/useTareaResponsables';
+import { useOrganizationToday } from '@/hooks/useOrganizationToday';
+import { useTareasAlcance } from '@/hooks/useTareasAlcance';
+import { useTareaAcciones, type TareaAccionRequest } from '@/hooks/useTareaAcciones';
 import { useAuth } from '@/contexts/AuthContext';
 import { useOrganization } from '@/contexts/OrganizationContext';
-import { useRequirePinForAction } from '@/components/ActionPinGate';
 import { useSucursal } from '@/contexts/SucursalContext';
-
-import { getTareaVencimiento as getTareaVencHelper, getPeticionVencimiento as getPeticionVencHelper } from '@/lib/tareasVencimiento';
-import { toast } from 'sonner';
-
+import { useRequirePinForAction } from '@/components/ActionPinGate';
+import { Barber } from '@/types/barbershop';
+import { feedback } from '@/lib/feedback';
+import { formatTimestampInTimezone } from '@/lib/dateUtils';
+import { mensajeTareas } from '@/lib/tareasData';
+import {
+  agruparTareas, coincideFiltro, fechaDeTarea, formatDiaCorto, formatDiaLargo, formatDiaSemana, formatRangoSemana, progresoSemanal,
+  resueltasDeLaSemana, type AlcanceTareas, type ItemAgenda, type ItemTarea, type TareaPrevista,
+} from '@/lib/tareasAgenda';
+import { TareaActionPinDialog } from './tareas/TareaActionPinDialog';
+import { TareasLoadError } from './tareas/TareasLoadError';
+import { TareaFila, MetaCuando, MetaResponsable, MetaSucursal, type AccionMenu, type EstadoFila } from './tareas/TareaFila';
+import { TareasSeccion, ListaTareas } from './tareas/TareasSeccion';
+import { TareasProgresoSemanal } from './tareas/TareasProgresoSemanal';
+import { TareasFiltros } from './tareas/TareasFiltros';
+import { TareaDetalleDrawer, type DetalleTarea } from './tareas/TareaDetalleDrawer';
+import { TareaFormDrawer, type TareaFormModo } from './tareas/TareaFormDrawer';
+import { PeticionFormDrawer } from './tareas/PeticionFormDrawer';
+import { TareaEliminarDialog } from './tareas/TareaEliminarDialog';
+import { PeticionesLista } from './tareas/PeticionesLista';
+import { RecurrentesPanel } from './tareas/RecurrentesPanel';
+import { TareasHistorial } from './tareas/TareasHistorial';
+import type { UltimaOcurrencia } from './tareas/RecurrenteFila';
 
 interface TareasPanelProps {
+  /** Se conserva por compatibilidad con Index; los responsables salen de la pertenencia estructural (4A). */
   barbers: Barber[];
 }
 
-type TareaItem = ReturnType<typeof useTareas>['tareas'][number];
+type Vista = 'lista' | 'automaticas' | 'historial';
+type PinPendiente = TareaAccionRequest & { tarea?: Tarea };
 
-const ESTADO_OPTIONS_TAREA = [
-  { value: 'todos', label: 'Todos los estados' },
-  { value: 'pendiente', label: 'Pendiente' },
-  { value: 'en_progreso', label: 'En progreso' },
-  { value: 'vencida', label: 'Vencida' },
-];
+const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const ERROR_ACCION = 'No pudimos realizar la acción. Actualizá la lista y reintentá.';
 
-const ESTADO_OPTIONS_PETICION = [
-  { value: 'todos', label: 'Todos los estados' },
-  { value: 'pendiente', label: 'Pendiente' },
-  { value: 'completada', label: 'Completada' },
-  { value: 'rechazada', label: 'Rechazada' },
-  { value: 'vencida', label: 'Vencida' },
-];
-
-const FECHA_OPTIONS = [
-  { value: 'todas', label: 'Todas las fechas' },
-  { value: 'hoy', label: 'Hoy' },
-  { value: 'semana', label: 'Próximos 7 días' },
-  { value: 'mes', label: 'Próximos 30 días' },
-  { value: 'vencida', label: 'Vencidas' },
-];
-
-export function TareasPanel({ barbers }: TareasPanelProps) {
-  const { tareas, isLoading, addTarea, updateTarea, deleteTarea } = useTareas();
-  const showSkeleton = useDelayedVisible(isLoading);
-  const { canManageConfig, isOwner, isGeneralManager, isManager, isBarber, isSucursalAccount, profile } = useAuth();
+/**
+ * Principal → Tareas. Responde de un vistazo: cómo viene la semana, qué está atrasado, qué hay que
+ * hacer hoy, qué viene y qué quedó sin fecha. Lista vertical de filas, igual en mobile, tablet y desktop.
+ */
+export function TareasPanel(_props: TareasPanelProps) {
+  const { isOwner, isGeneralManager, isManager, isBarber, isSucursalAccount, canManageConfig, profile, user } = useAuth();
   const { organization } = useOrganization();
   const { currentSucursal, sucursales } = useSucursal();
   const requirePinForAction = useRequirePinForAction();
+  const today = useOrganizationToday();
+  const timezone = organization?.timezone;
 
   const canManageTareas = isOwner || isGeneralManager || isManager;
   const canViewRecurrentes = canManageTareas || isSucursalAccount;
-  const tareasDiasDefault = organization?.tareas_vencimiento_dias_default ?? 1;
-  const peticionesDiasDefault = organization?.peticiones_vencimiento_dias ?? 60;
+  const diasVencimiento = organization?.tareas_vencimiento_dias_default ?? 1;
+  const diasPeticion = organization?.peticiones_vencimiento_dias ?? 60;
+  const multiSucursal = !currentSucursal && sucursales.length > 1;
+  const miBarberoId = profile?.barbero_id ?? null;
 
+  // Barbero: sus tareas, sin selector. Cuenta de sucursal: Negocio de su sucursal, sin selector.
+  // Supervisor: "Mis tareas | Negocio" solo si además trabaja como integrante (tiene barbero vinculado).
+  const tieneMisTareas = canManageTareas && !!miBarberoId;
+  const [alcanceElegido, elegirAlcance] = useTareasAlcance(user?.id, organization?.id);
+  const alcance: AlcanceTareas = tieneMisTareas ? alcanceElegido : 'negocio';
+  const personal = alcance === 'mias' || (isBarber && !canManageTareas && !isSucursalAccount);
+  const usaFiltros = canManageTareas && alcance === 'negocio';
 
-  const [showForm, setShowForm] = useState(false);
-  const [editingTarea, setEditingTarea] = useState<TareaItem | null>(null);
   const [activeTab, setActiveTab] = useState('tareas');
-  const [filtroEstado, setFiltroEstado] = useState('todos');
+  const [vista, setVista] = useState<Vista>('lista');
+  const [focoAutomatica, setFocoAutomatica] = useState<string | null>(null);
   const [filtroResp, setFiltroResp] = useState('todos');
-  const [filtroFecha, setFiltroFecha] = useState('todas');
   const [filtroSucursal, setFiltroSucursal] = useState('todas');
-  const [showCompletedHistory, setShowCompletedHistory] = useState(false);
-  const [showRecurrencias, setShowRecurrencias] = useState(false);
+  const [resueltasAbiertas, setResueltasAbiertas] = useState(false);
+  const [form, setForm] = useState<TareaFormModo | null>(null);
+  const [peticionForm, setPeticionForm] = useState<{ creador?: string } | null>(null);
+  const [detalle, setDetalle] = useState<DetalleTarea | null>(null);
+  const [eliminar, setEliminar] = useState<Tarea | null>(null);
+  const [pinAction, setPinAction] = useState<PinPendiente | null>(null);
+  const [resolviendoPeticion, setResolviendoPeticion] = useState<string | null>(null);
+  // Completadas en este dispositivo mientras la lista se actualiza: completar se ve inmediato.
+  const [completadasLocales, setCompletadasLocales] = useState<Map<string, { tarea: Tarea; at: number }>>(new Map());
+  const atencionRef = useRef<HTMLElement>(null);
 
-  const [peticionCreador, setPeticionCreador] = useState<{ nombre: string; barberoId: string } | null>(null);
+  // Cambiar de organización, sucursal o persona descarta cualquier estado de la anterior.
+  useEffect(() => {
+    setPinAction(null); setDetalle(null); setEliminar(null); setForm(null); setPeticionForm(null);
+    setCompletadasLocales(new Map()); setFiltroResp('todos'); setFiltroSucursal('todas'); setVista('lista');
+  }, [organization?.id, currentSucursal?.id, profile?.id]);
 
-  const isTareasTab = activeTab === 'tareas';
+  const { tareas, hasData, isLoading, error, refetch, isFetching, dataUpdatedAt, addTarea, updateTarea, deleteTarea } = useTareas();
+  const recurrentes = useTareasRecurrentes(canViewRecurrentes);
+  const acciones = useTareaAcciones();
+  const misSucursales = useSucursalesDeIntegrante(miBarberoId, alcance === 'mias');
+  const responsables = useTareaResponsables(currentSucursal?.id ?? (filtroSucursal === 'todas' ? null : filtroSucursal), usaFiltros);
 
-  const showSucursalFilter = !currentSucursal && sucursales.length > 1;
-  const activeBarbers = barbers.filter(b => b.active);
-  const myBarberoId = profile?.barbero_id ?? null;
+  const filtrosActivos = usaFiltros && (filtroResp !== 'todos' || filtroSucursal !== 'todas');
+  const filtro = {
+    alcance, miBarberoId, misSucursales: misSucursales.data ?? [],
+    responsable: usaFiltros ? filtroResp : 'todos', sucursal: usaFiltros && multiSucursal ? filtroSucursal : 'todas',
+  };
 
-  const getPeticionVencimiento = (t: TareaItem) =>
-    getPeticionVencHelper(t, peticionesDiasDefault);
+  const tareasInternas = tareas.filter(t => t.tipo === 'tarea');
+  const peticiones = tareas.filter(t => t.tipo === 'peticion');
+  const semanaQuery = useTareasSemana(today, { necesitaExistencia: hasData && tareasInternas.length === 0 });
+  const { week } = semanaQuery;
+  const resueltasServidor = semanaQuery.resueltas.data;
+  const previstasServidor = semanaQuery.previstas.data;
+  const semanaLista = resueltasServidor !== undefined && previstasServidor !== undefined;
 
-  const getTareaVencimiento = (t: TareaItem) =>
-    getTareaVencHelper(t, tareasDiasDefault);
+  const locales = useMemo(() => [...completadasLocales.values()]
+    .filter(e => !(dataUpdatedAt > e.at && semanaQuery.resueltas.dataUpdatedAt > e.at)), [completadasLocales, dataUpdatedAt, semanaQuery.resueltas.dataUpdatedAt]);
+  const ocultas = new Set(locales.map(e => e.tarea.id));
 
-  // "Empezada" (en progreso) y "atrasada" son conceptos independientes: una tarea en progreso también puede estar vencida.
-  const isTareaVencida = (t: TareaItem) =>
-    t.tipo === 'tarea' && (
-      t.estado === 'vencida'
-      || ((t.estado === 'pendiente' || t.estado === 'en_progreso') && (!!t.vencida_at || getTareaVencimiento(t).vencida))
+  const ctx = { today, week, diasVencimiento };
+  const abiertas = tareasInternas.filter(t => !ocultas.has(t.id) && coincideFiltro(t, filtro));
+  const previstas = (previstasServidor ?? []).filter(p => coincideFiltro(p, filtro));
+  const resueltas = [
+    ...(resueltasServidor ?? []),
+    ...locales.map(e => e.tarea).filter(t => !(resueltasServidor ?? []).some(r => r.id === t.id)),
+  ].filter(t => coincideFiltro(t, filtro));
+  const agenda = agruparTareas(abiertas, previstas, ctx);
+  const progreso = progresoSemanal(abiertas, resueltas, previstas, ctx);
+  const resueltasSemana = resueltasDeLaSemana(resueltas, week, timezone);
+  const abiertasSinFiltro = tareasInternas.filter(t => !ocultas.has(t.id) && coincideFiltro(t, { ...filtro, responsable: 'todos', sucursal: 'todas' }));
+
+  // Refetch fallido con datos en pantalla: se conservan y se ofrece reintentar (DESIGN → Feedback).
+  useEffect(() => {
+    if (error && hasData) feedback.error('No pudimos actualizar las tareas.', { retry: { id: 'tareas-lista', onRetry: () => void refetch() } });
+  }, [error, hasData]); // eslint-disable-line react-hooks/exhaustive-deps
+  const errorSemana = semanaQuery.resueltas.error ?? semanaQuery.previstas.error;
+  useEffect(() => {
+    if (errorSemana && semanaLista) feedback.error('No pudimos actualizar el progreso de la semana.', {
+      retry: { id: 'tareas-semana', onRetry: () => { void semanaQuery.resueltas.refetch(); void semanaQuery.previstas.refetch(); } },
+    });
+  }, [errorSemana, semanaLista]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const showSkeleton = useDelayedVisible(isLoading && !hasData);
+  const sucursalNombre = (id: string | null) => (id ? sucursales.find(s => s.id === id)?.nombre ?? null : null);
+  const recetaPorId = (id: string | null) => (id ? recurrentes.recetas.find(r => r.id === id) ?? null : null);
+  const automaticaTitulo = (id: string | null) => recetaPorId(id)?.titulo ?? null;
+
+  // ---------- Acciones de servidor (4A): iniciar / completar / deshacer ----------
+  const enCurso = (id: string) => (acciones.isPending && acciones.variables?.id === id
+    ? (acciones.variables.accion === 'iniciar' ? 'iniciar' : 'completar') : null);
+
+  const ejecutar = async (request: TareaAccionRequest, tarea?: Tarea, pin?: string) => {
+    const result = await acciones.mutateAsync({ ...request, pin });
+    setPinAction(null);
+    if (request.accion === 'completar' && tarea) {
+      const completada: Tarea = { ...tarea, estado: 'completada', accion_version: result.version, completada_at: result.completada_at ?? new Date().toISOString(), completada_por_nombre: result.actor_nombre };
+      setCompletadasLocales(prev => new Map(prev).set(tarea.id, { tarea: completada, at: Date.now() }));
+      setDetalle(d => (d?.kind === 'tarea' && d.tarea.id === tarea.id ? null : d));
+      // El plazo lo controla el servidor; el aviso dura lo mismo que la ventana que permite.
+      feedback.success('Tarea completada', {
+        id: `tarea-completada-${tarea.id}`, duration: 30_000,
+        action: { label: 'Deshacer', onClick: () => solicitar({ id: tarea.id, version: result.version, accion: 'deshacer' }, tarea) },
+      });
+    } else if (request.accion === 'deshacer') {
+      setCompletadasLocales(prev => { const next = new Map(prev); next.delete(request.id); return next; });
+      feedback.success('Listo: la tarea volvió a quedar abierta');
+    }
+  };
+  const solicitar = (request: TareaAccionRequest, tarea?: Tarea) => {
+    if (acciones.isPending) return;
+    if (isSucursalAccount) setPinAction({ ...request, tarea });
+    else void ejecutar(request, tarea).catch(e => feedback.error(mensajeTareas(e, ERROR_ACCION)));
+  };
+
+  const puedeActuar = (t: Tarea) => canManageTareas || isSucursalAccount || (isBarber && (t.assignment_scope === 'team' || (!!miBarberoId && t.asignado_a_id === miBarberoId)));
+  const abrirAutomatica = (id: string) => {
+    setDetalle(null);
+    setActiveTab('tareas'); setFocoAutomatica(id); setVista('automaticas');
+  };
+  const editarAutomatica = (id: string) => {
+    const receta = recetaPorId(id);
+    if (receta && canManageTareas) setForm({ tipo: 'editar-automatica', receta });
+    else abrirAutomatica(id);
+  };
+
+  // ---------- Construcción de filas ----------
+  const metaComun = (scope: string, asignadoId: string | null, nombre: string | null, sucursalId: string | null): ReactNode[] => {
+    const meta: ReactNode[] = [];
+    const propia = personal && scope !== 'team' && !!miBarberoId && asignadoId === miBarberoId;
+    if (!propia) meta.push(<MetaResponsable key="resp" equipo={scope === 'team'} nombre={nombre} />);
+    const suc = multiSucursal && !(usaFiltros && filtroSucursal !== 'todas') ? sucursalNombre(sucursalId) : null;
+    if (suc) meta.push(<MetaSucursal key="suc" nombre={suc} />);
+    return meta;
+  };
+  const conHora = (texto: string, hora: string | null) => (hora ? `${texto} · ${hora}` : texto);
+
+  const menuTarea = (t: Tarea, abrir: () => void): AccionMenu[] => [
+    { label: 'Ver detalle', onSelect: abrir },
+    ...(canManageTareas && t.estado !== 'completada' ? [{ label: 'Editar', onSelect: () => setForm({ tipo: 'editar-tarea', tarea: t }) }] : []),
+    ...(t.recurrencia_id && canViewRecurrentes ? [{ label: 'Ver Tarea automática', onSelect: () => abrirAutomatica(t.recurrencia_id!) }] : []),
+    ...(canManageTareas ? [{ label: 'Eliminar', onSelect: () => setEliminar(t), destructive: true }] : []),
+  ];
+
+  const filaPrevista = (p: TareaPrevista, seccion: 'hoy' | 'proximas') => (
+    <TareaFila key={`prevista:${p.recurrencia_id}:${p.fecha}`} titulo={p.titulo} descripcion={p.descripcion} estado="programada" automatica
+      meta={[
+        ...(seccion === 'proximas' ? [<MetaCuando key="cuando" texto={conHora(formatDiaCorto(p.fecha), p.hora)} />] : p.hora ? [<MetaCuando key="cuando" texto={p.hora} />] : []),
+        ...metaComun(p.assignment_scope, p.asignado_a_id, p.asignado_a_nombre, p.sucursal_id),
+      ]}
+      onAbrir={() => setDetalle({ kind: 'prevista', prevista: p })}
+      menu={canViewRecurrentes ? [{ label: 'Ver Tarea automática', onSelect: () => abrirAutomatica(p.recurrencia_id) }] : []} />
+  );
+
+  const filaTarea = (item: ItemTarea, seccion: 'atencion' | 'hoy' | 'proximas' | 'sinFecha') => {
+    const t = item.tarea;
+    const enProgreso = t.estado === 'en_progreso';
+    const estado: EstadoFila = item.vencida ? (enProgreso ? 'en_progreso_vencida' : 'vencida') : enProgreso ? 'en_progreso' : 'pendiente';
+    const fecha = fechaDeTarea(t);
+    const meta: ReactNode[] = [];
+    if (seccion === 'atencion' && fecha) meta.push(<MetaCuando key="cuando" texto={conHora(formatDiaCorto(fecha), t.hora)} />);
+    if (seccion === 'proximas' && fecha) meta.push(<MetaCuando key="cuando" texto={conHora(formatDiaCorto(fecha), t.hora)} />);
+    if (seccion === 'hoy') {
+      if (item.desde) meta.push(<MetaCuando key="cuando" texto={conHora(`Desde el ${formatDiaSemana(item.desde)}`, t.hora)} />);
+      else if (t.hora) meta.push(<MetaCuando key="cuando" texto={t.hora} />);
+      if (item.diasParaVencer === 0) meta.push(<MetaCuando key="vence" texto="Vence hoy" destacar />);
+    }
+    if (seccion === 'sinFecha') meta.push(<span key="creada">Creada el {formatTimestampInTimezone(t.created_at, timezone, false)}</span>);
+    meta.push(...metaComun(t.assignment_scope, t.asignado_a_id, t.asignado_a_nombre, t.sucursal_id));
+    const abrir = () => setDetalle({ kind: 'tarea', tarea: t, vencida: item.vencida });
+    const actua = puedeActuar(t) && !!t.accion_version;
+    return (
+      <TareaFila key={t.id} titulo={t.titulo} descripcion={t.descripcion} estado={estado} meta={meta} automatica={!!t.recurrencia_id}
+        onAbrir={abrir}
+        onCompletar={actua ? () => solicitar({ id: t.id, version: t.accion_version!, accion: 'completar' }, t) : undefined}
+        onIniciar={actua && !enProgreso ? () => solicitar({ id: t.id, version: t.accion_version!, accion: 'iniciar' }, t) : undefined}
+        enCurso={enCurso(t.id)} bloqueada={acciones.isPending} menu={menuTarea(t, abrir)} />
     );
+  };
+  const fila = (item: ItemAgenda, seccion: 'hoy' | 'proximas') =>
+    (item.kind === 'prevista' ? filaPrevista(item.prevista, seccion) : filaTarea(item, seccion));
 
-  const matchesFecha = (t: TareaItem) => {
-    if (filtroFecha === 'todas') return true;
-    const fechaRef = t.fecha_inicio ?? t.fecha_limite;
-    if (filtroFecha === 'vencida') {
-      // Estado persistido por backend (process_vencimientos_tareas).
-      if (t.estado === 'vencida') return true;
-      // Fallback visual durante la ventana <1h entre vencimiento real y cron.
-      if (t.tipo === 'peticion' && t.estado === 'pendiente') {
-        return getPeticionVencimiento(t).vencida;
-      }
-      if (t.tipo === 'tarea') {
-        return isTareaVencida(t);
-      }
-      return false;
-    }
-    if (!fechaRef) return false;
-    const diff = differenceInDays(new Date(fechaRef), new Date());
-    if (filtroFecha === 'hoy') return diff === 0;
-    if (filtroFecha === 'semana') return diff >= 0 && diff <= 7;
-    if (filtroFecha === 'mes') return diff >= 0 && diff <= 30;
-    return true;
+  const metaCompletada = (t: Tarea): ReactNode[] => [
+    <span key="por" className="inline-flex items-center gap-1">
+      <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+      {t.completada_por_nombre || 'Alguien del equipo'}{t.completada_at ? ` · ${formatTimestampInTimezone(t.completada_at, timezone)}` : ''}
+    </span>,
+    ...metaComun(t.assignment_scope, t.asignado_a_id, t.asignado_a_nombre, t.sucursal_id),
+  ];
+  const filaCompletada = (t: Tarea) => {
+    const abrir = () => setDetalle({ kind: 'tarea', tarea: t, vencida: false });
+    return <TareaFila key={t.id} titulo={t.titulo} descripcion={t.descripcion} estado="completada" automatica={!!t.recurrencia_id}
+      meta={metaCompletada(t)} onAbrir={abrir} menu={menuTarea(t, abrir)} />;
   };
 
-  const matchesResp = (t: TareaItem) => {
-    if (filtroResp === 'todos') return true;
-    if (filtroResp === '__team__') return t.assignment_scope === 'team';
-    return t.asignado_a_id === filtroResp;
-  };
-
-  const matchesSucursal = (t: TareaItem) => {
-    if (!showSucursalFilter || filtroSucursal === 'todas') return true;
-    return t.sucursal_id === filtroSucursal;
-  };
-
-  const tareasFiltradas = useMemo(() => tareas.filter(t => {
-    // Excluir SIEMPRE completadas de la vista operativa de tareas (las peticiones se filtran abajo).
-    if (t.tipo === 'tarea' && t.estado === 'completada') return false;
-    if (filtroEstado !== 'todos') {
-      if (filtroEstado === 'vencida') {
-        if (t.estado === 'vencida') {
-          // ok
-        } else {
-          const peticionVencida = t.tipo === 'peticion' && t.estado === 'pendiente' && getPeticionVencimiento(t).vencida;
-          if (!peticionVencida && !isTareaVencida(t)) return false;
-        }
-      } else if (t.estado !== filtroEstado) return false;
-    }
-    return matchesFecha(t) && matchesSucursal(t) && (t.tipo === 'peticion' || matchesResp(t));
-  }), [tareas, filtroEstado, filtroFecha, filtroResp, filtroSucursal]);
-
-  const tareasAdmin = tareasFiltradas.filter(t => t.tipo === 'tarea');
-  const peticiones = tareasFiltradas.filter(t => t.tipo === 'peticion');
-
-  const tareasCompletadas = useMemo(() => tareas.filter(t => {
-    if (t.tipo !== 'tarea' || t.estado !== 'completada') return false;
-    return matchesSucursal(t) && matchesResp(t);
-  }), [tareas, filtroResp, filtroSucursal]);
-
-  // La programación vive en la Tarea automática; la tarea generada solo indica de dónde viene.
-  const getRepeatDisplay = (t: TareaItem) => (t.recurrencia_id ? 'Automática' : null);
-
-  const sucursalNombre = (id: string | null) =>
-    id ? (sucursales.find(s => s.id === id)?.nombre ?? null) : null;
-
-  const renderEstadoBadge = (t: TareaItem) => {
-    // Estado persistido por backend tiene prioridad sobre el cálculo visual.
-    if (t.estado === 'vencida') {
-      return <Badge variant="outline" className="text-status-warning-foreground border-status-warning bg-status-warning-bg gap-1"><AlertTriangle className="w-3 h-3" />Vencida</Badge>;
-    }
-    if (t.tipo === 'peticion' && t.estado === 'pendiente') {
-      const { vencida, diasRestantes } = getPeticionVencimiento(t);
-      if (vencida) return <Badge variant="outline" className="text-status-warning-foreground border-status-warning bg-status-warning-bg gap-1"><AlertTriangle className="w-3 h-3" />Vencida</Badge>;
-      if (diasRestantes !== null && diasRestantes <= 7) return <Badge variant="outline" className="text-status-warning-foreground border-status-warning bg-status-warning-bg gap-1"><Clock className="w-3 h-3" />Vence en {diasRestantes}d</Badge>;
-    }
-    if (t.tipo === 'tarea' && t.estado === 'pendiente' && getTareaVencimiento(t).vencida) {
-      return <Badge variant="outline" className="text-status-warning-foreground border-status-warning bg-status-warning-bg gap-1"><AlertTriangle className="w-3 h-3" />Vencida</Badge>;
-    }
-    // En progreso y vencida a la vez: se muestran las dos cosas, no una sola.
-    if (t.tipo === 'tarea' && t.estado === 'en_progreso' && isTareaVencida(t)) {
-      return (
-        <span className="flex flex-wrap items-center justify-end gap-1">
-          <Badge variant="outline" className="text-status-info-foreground border-status-info bg-status-info-bg gap-1"><RefreshCw className="w-3 h-3" />En progreso</Badge>
-          <Badge variant="outline" className="text-status-warning-foreground border-status-warning bg-status-warning-bg gap-1"><AlertTriangle className="w-3 h-3" />Vencida</Badge>
-        </span>
-      );
-    }
-    switch (t.estado) {
-      case 'pendiente': return <Badge variant="outline" className="text-status-warning-foreground border-status-warning bg-status-warning-bg gap-1"><Clock className="w-3 h-3" />Pendiente</Badge>;
-      case 'en_progreso': return <Badge variant="outline" className="text-status-info-foreground border-status-info bg-status-info-bg gap-1"><RefreshCw className="w-3 h-3" />En progreso</Badge>;
-      case 'completada': return <Badge variant="outline" className="text-status-success-foreground border-status-success bg-status-success-bg gap-1"><CheckCircle className="w-3 h-3" />Completada</Badge>;
-      case 'rechazada': return <Badge variant="outline" className="text-status-error-foreground border-status-error bg-status-error-bg gap-1"><XCircle className="w-3 h-3" />Rechazada</Badge>;
-      default: return <Badge variant="outline">{t.estado}</Badge>;
-    }
-  };
-
-  // PIN flows: delegados a requirePinForAction (bypass automático para cuentas personales).
-  const handleNuevaTarea = () => { setEditingTarea(null); setPeticionCreador(null); setShowForm(true); };
-  const handleEditTarea = (t: TareaItem) => { setEditingTarea(t); setPeticionCreador(null); setShowForm(true); };
-
+  // ---------- Peticiones ----------
   const handleNuevaPeticion = async () => {
     const gate = await requirePinForAction('crear_tarea', currentSucursal?.id ?? null);
     if (gate.ok !== true) return;
-    const nombre = gate.userName ?? profile?.full_name ?? profile?.email ?? '';
-    const barberoId = gate.validatedByUserId ?? profile?.barbero_id ?? '';
-    setPeticionCreador({ nombre, barberoId });
-    setShowForm(true);
+    setPeticionForm({ creador: gate.userName ?? profile?.full_name ?? profile?.email ?? undefined });
   };
-
-  const requestPeticionAction = async (tareaId: string, action: string) => {
-    const actionKey = action === 'completada' ? 'completar_tarea' : 'editar_tarea';
-    const gate = await requirePinForAction(actionKey, currentSucursal?.id ?? null);
+  const resolverPeticion = async (t: Tarea, estado: 'completada' | 'rechazada') => {
+    const gate = await requirePinForAction(estado === 'completada' ? 'completar_tarea' : 'editar_tarea', currentSucursal?.id ?? null);
     if (gate.ok !== true) return;
-    if (action === 'delete') deleteTarea.mutate(tareaId);
-    else updateTarea.mutate({ id: tareaId, estado: action });
-    if (gate.userName) toast.success(`Acción realizada por ${gate.userName}`);
+    setResolviendoPeticion(t.id);
+    try {
+      await updateTarea.mutateAsync({ id: t.id, estado });
+      // Solo después de confirmar el guardado, con quien la resolvió si validó PIN.
+      feedback.success(`${estado === 'completada' ? 'Petición resuelta' : 'Petición rechazada'}${gate.userName ? ` por ${gate.userName}` : ''}`);
+    } catch (e) {
+      feedback.error(mensajeTareas(e, 'No pudimos actualizar la petición. Reintentá.'));
+    } finally {
+      setResolviendoPeticion(null);
+    }
+  };
+  const confirmarEliminar = async () => {
+    if (!eliminar) return;
+    const esPeticion = eliminar.tipo === 'peticion';
+    if (esPeticion) {
+      const gate = await requirePinForAction('editar_tarea', currentSucursal?.id ?? null);
+      if (gate.ok !== true) return;
+    }
+    try {
+      await deleteTarea.mutateAsync(eliminar.id);
+      feedback.success(esPeticion ? 'Petición eliminada' : 'Tarea eliminada');
+      setDetalle(d => (d?.kind === 'tarea' && d.tarea.id === eliminar.id ? null : d));
+      setEliminar(null);
+    } catch (e) {
+      feedback.error(mensajeTareas(e, esPeticion ? 'No pudimos eliminar la petición. Reintentá.' : 'No pudimos eliminar la tarea. Reintentá.'));
+    }
   };
 
-  // Card renderers
-  const TareaCard = ({ t }: { t: TareaItem }) => {
-    const isTeam = t.assignment_scope === 'team';
-    const isMine = !!myBarberoId && t.asignado_a_id === myBarberoId;
-    const canComplete = canManageTareas || (isBarber && !isTeam && isMine);
-    const canStart = canComplete;
-    const canDelete = canManageTareas;
-    const sNombre = sucursalNombre(t.sucursal_id);
-    const repeatTxt = getRepeatDisplay(t);
+  // ---------- Detalle con datos frescos ----------
+  const detalleVigente: DetalleTarea | null = (() => {
+    if (detalle?.kind !== 'tarea') return detalle;
+    const fresca = tareas.find(t => t.id === detalle.tarea.id) ?? resueltas.find(t => t.id === detalle.tarea.id);
+    if (!fresca) return detalle;
+    const item = agenda.atencion.find(i => i.tarea.id === fresca.id);
+    return { kind: 'tarea', tarea: fresca, vencida: item?.vencida ?? detalle.vencida };
+  })();
+  const tareaDetalle = detalleVigente?.kind === 'tarea' ? detalleVigente.tarea : null;
+  const detalleAbierta = !!tareaDetalle && tareaDetalle.tipo === 'tarea' && ['pendiente', 'en_progreso', 'vencida'].includes(tareaDetalle.estado);
+  const detalleActua = !!tareaDetalle && detalleAbierta && puedeActuar(tareaDetalle) && !!tareaDetalle.accion_version;
+  const recurrenciaDetalle = tareaDetalle?.recurrencia_id ?? (detalleVigente?.kind === 'prevista' ? detalleVigente.prevista.recurrencia_id : null);
 
-    return (
-      <Card className="flex flex-col">
-        <CardContent className="p-4 flex flex-col gap-3 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="font-medium text-sm leading-snug text-foreground">{t.titulo}</h3>
-            {renderEstadoBadge(t)}
-          </div>
-
-          {t.descripcion && (
-            <p className="text-xs text-muted-foreground">{t.descripcion}</p>
-          )}
-
-          <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-muted-foreground mt-auto">
-            <span className="inline-flex items-center gap-1">
-              {isTeam ? <Users className="h-3.5 w-3.5" /> : <User className="h-3.5 w-3.5" />}
-              {isTeam ? 'Todo el equipo' : (t.asignado_a_nombre || 'Sin asignar')}
-            </span>
-            {sNombre && (
-              <span className="inline-flex items-center gap-1">
-                <MapPin className="h-3.5 w-3.5" />{sNombre}
-              </span>
-            )}
-            {(t.fecha_inicio ?? t.fecha_limite) && (
-              <span className="inline-flex items-center gap-1">
-                <CalendarDays className="h-3.5 w-3.5" />
-                <span className="text-foreground/80">Inicio:</span>{' '}
-                {format(new Date((t.fecha_inicio ?? t.fecha_limite)!), 'dd MMM', { locale: es })}
-                {t.hora && <span>· {t.hora}</span>}
-              </span>
-            )}
-            {repeatTxt && (
-              <span className="inline-flex items-center gap-1">
-                <Repeat className="h-3.5 w-3.5" />{repeatTxt}
-              </span>
-            )}
-          </div>
-
-          {(canStart || canComplete || canDelete || canManageTareas) && (
-            <div className="flex items-center justify-end gap-1 pt-2 border-t border-border">
-              {canStart && t.estado === 'pendiente' && (
-                <Button size="sm" variant="ghost" onClick={() => updateTarea.mutate({ id: t.id, estado: 'en_progreso' })}>
-                  <RefreshCw className="h-4 w-4 mr-1" />Iniciar
-                </Button>
-              )}
-              {canComplete && (t.estado === 'pendiente' || t.estado === 'en_progreso' || t.estado === 'vencida') && (
-                <Button size="sm" variant="ghost" className="text-status-success-foreground" onClick={() => updateTarea.mutate({ id: t.id, estado: 'completada' })}>
-                  <CheckCircle className="h-4 w-4 mr-1" />Completar
-                </Button>
-              )}
-              {canManageTareas && (
-                <Button size="sm" variant="ghost" onClick={() => handleEditTarea(t)}>
-                  <Pencil className="h-4 w-4" />
-                </Button>
-              )}
-              {canDelete && (
-                <Button size="sm" variant="ghost" className="text-destructive" onClick={() => deleteTarea.mutate(t.id)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    );
+  const ultimaOcurrencia = (recurrenciaId: string): UltimaOcurrencia | null => {
+    const candidatas = [...tareasInternas, ...resueltas].filter(t => t.recurrencia_id === recurrenciaId);
+    if (!candidatas.length) return null;
+    const ultima = candidatas.sort((a, b) => (fechaDeTarea(b) ?? '').localeCompare(fechaDeTarea(a) ?? ''))[0];
+    const fecha = fechaDeTarea(ultima);
+    const vencida = agruparTareas([ultima], [], ctx).atencion.some(i => i.vencida);
+    const estado = ultima.estado === 'completada' ? 'completada' : vencida ? 'vencida' : ultima.estado === 'en_progreso' ? 'en progreso' : 'pendiente';
+    return { fecha, texto: `${estado}${fecha ? ` (${formatDiaCorto(fecha)})` : ''}` };
   };
 
-  const PeticionCard = ({ t }: { t: TareaItem }) => {
-    const isVencida = t.estado === 'vencida';
-    const venc = t.estado === 'pendiente' ? getPeticionVencimiento(t) : null;
-    const sNombre = sucursalNombre(t.sucursal_id);
-    const canAct = t.estado === 'pendiente' || isVencida;
-    return (
-      <Card className={`flex flex-col ${venc?.vencida || isVencida ? 'opacity-70' : ''}`}>
-        <CardContent className="p-4 flex flex-col gap-3 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="font-medium text-sm leading-snug text-foreground">{t.titulo}</h3>
-            {renderEstadoBadge(t)}
-          </div>
-
-          {t.descripcion && (
-            <p className="text-xs text-muted-foreground">{t.descripcion}</p>
-          )}
-
-          <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-muted-foreground mt-auto">
-            <span className="inline-flex items-center gap-1">
-              <User className="h-3.5 w-3.5" />{t.creado_por_nombre || '—'}
-            </span>
-            {sNombre && (
-              <span className="inline-flex items-center gap-1">
-                <MapPin className="h-3.5 w-3.5" />{sNombre}
-              </span>
-            )}
-            <span className="inline-flex items-center gap-1">
-              <CalendarDays className="h-3.5 w-3.5" />
-              {format(new Date(t.created_at), 'dd MMM yyyy', { locale: es })}
-            </span>
-            {venc && !venc.vencida && (
-              <span className="inline-flex items-center gap-1">
-                <Clock className="h-3.5 w-3.5" />{venc.diasRestantes}d restantes
-              </span>
-            )}
-          </div>
-
-          {canAct && (
-            <div className="flex items-center justify-end gap-1 pt-2 border-t border-border">
-              <Button size="sm" variant="ghost" className="text-status-success-foreground" onClick={() => requestPeticionAction(t.id, 'completada')}>
-                <CheckCircle className="h-4 w-4 mr-1" />{isVencida ? 'Aprobar' : 'Completar'}
-              </Button>
-              <Button size="sm" variant="ghost" className="text-destructive" onClick={() => requestPeticionAction(t.id, 'rechazada')}>
-                <XCircle className="h-4 w-4 mr-1" />Rechazar
-              </Button>
-              {canManageConfig && (
-                <Button size="sm" variant="ghost" className="text-destructive" onClick={() => requestPeticionAction(t.id, 'delete')}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    );
-  };
-
-  const CompletadaCard = ({ t }: { t: TareaItem }) => {
-    const isTeam = t.assignment_scope === 'team';
-    const sNombre = sucursalNombre(t.sucursal_id);
-    const completadaAt = (t as TareaItem & { completada_at: string | null }).completada_at;
-    const completadaPor = (t as TareaItem & { completada_por_nombre: string | null }).completada_por_nombre;
-    return (
-      <Card className="flex flex-col">
-        <CardContent className="p-4 flex flex-col gap-3 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="font-medium text-sm leading-snug text-foreground">{t.titulo}</h3>
-            <Badge variant="outline" className="text-status-success-foreground border-status-success bg-status-success-bg gap-1">
-              <CheckCircle className="w-3 h-3" />Completada
-            </Badge>
-          </div>
-
-          {t.descripcion && (
-            <p className="text-xs text-muted-foreground">{t.descripcion}</p>
-          )}
-
-          <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1">
-              {isTeam ? <Users className="h-3.5 w-3.5" /> : <User className="h-3.5 w-3.5" />}
-              {isTeam ? 'Todo el equipo' : (t.asignado_a_nombre || '—')}
-            </span>
-            {sNombre && (
-              <span className="inline-flex items-center gap-1">
-                <MapPin className="h-3.5 w-3.5" />{sNombre}
-              </span>
-            )}
-            {(t.fecha_inicio ?? t.fecha_limite) && (
-              <span className="inline-flex items-center gap-1">
-                <CalendarDays className="h-3.5 w-3.5" />
-                {format(new Date((t.fecha_inicio ?? t.fecha_limite)!), 'dd MMM', { locale: es })}
-                {t.hora && <span>· {t.hora}</span>}
-              </span>
-            )}
-          </div>
-
-          <div className="text-xs text-muted-foreground border-t border-border pt-2 mt-auto space-y-0.5">
-            {completadaAt || completadaPor ? (
-              <>
-                <div className="inline-flex items-center gap-1">
-                  <CheckCircle className="h-3.5 w-3.5" />
-                  Completada por <span className="text-foreground font-medium">{completadaPor || '—'}</span>
-                </div>
-                {completadaAt && (
-                  <div className="inline-flex items-center gap-1">
-                    <Clock className="h-3.5 w-3.5" />
-                    {format(new Date(completadaAt), "dd MMM yyyy 'a las' HH:mm", { locale: es })}
-                  </div>
-                )}
-              </>
-            ) : (
-              <span className="italic">Sin registro de completado</span>
-            )}
-          </div>
-
-          {canManageTareas && (
-            <div className="flex items-center justify-end gap-1">
-              <Button size="sm" variant="ghost" className="text-destructive" onClick={() => deleteTarea.mutate(t.id)}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    );
-  };
-
-  if (isLoading) {
+  // ---------- Render ----------
+  if (isLoading && !hasData) {
     if (!showSkeleton) return null;
     return (
-      <div className="w-full max-w-4xl lg:max-w-6xl mx-auto space-y-6">
+      <div className="w-full space-y-6" aria-busy="true">
         <div className="flex items-start gap-3">
-          <Skeleton className="h-10 w-10 rounded-[10px] shrink-0" />
-          <div className="space-y-2">
-            <Skeleton className="h-6 w-32" />
-            <Skeleton className="h-4 w-72 max-w-full" />
-          </div>
+          <Skeleton className="h-10 w-10 shrink-0 rounded-[10px]" />
+          <div className="space-y-2"><Skeleton className="h-6 w-28" /><Skeleton className="h-4 w-64 max-w-full" /></div>
         </div>
         <Skeleton className="h-9 w-56" />
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i}>
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <Skeleton className="h-4 w-2/3" />
-                  <Skeleton className="h-5 w-16 rounded-full shrink-0" />
-                </div>
-                <Skeleton className="h-3 w-full" />
-                <Skeleton className="h-3 w-1/3" />
-              </CardContent>
-            </Card>
-          ))}
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
+          <Skeleton className="h-[5.25rem] w-full rounded-xl xl:col-start-2 xl:row-start-1" />
+          <div className="space-y-2 xl:col-start-1 xl:row-start-1">
+            <Skeleton className="h-4 w-24" />
+            <ListaTareas>{Array.from({ length: 5 }).map((_, i) => <li key={i} className="px-3 py-3 sm:px-4"><SkeletonRow /></li>)}</ListaTareas>
+          </div>
         </div>
       </div>
     );
   }
 
-  const estadoOptions = isTareasTab ? ESTADO_OPTIONS_TAREA : ESTADO_OPTIONS_PETICION;
+  const isTareasTab = activeTab === 'tareas';
+  const peticionesAbiertas = peticiones.filter(p => p.estado === 'pendiente' || p.estado === 'vencida').length;
+  const hayAgenda = agenda.atencion.length + agenda.hoy.length + agenda.proximas.length + agenda.sinFecha.length > 0;
+  const hayAlgoEstaSemana = hayAgenda || resueltasSemana.length > 0;
+  const existeHistorial = semanaQuery.existeHistorial.data === true || recurrentes.recetas.length > 0;
+
+  const accionesHeader = isTareasTab ? (vista === 'lista' && (
+    <>
+      {canViewRecurrentes && (
+        <Button type="button" variant="outline" onClick={() => { setFocoAutomatica(null); setVista('automaticas'); }}>
+          <Repeat aria-hidden />Tareas automáticas
+        </Button>
+      )}
+      {canManageTareas && <Button type="button" onClick={() => setForm({ tipo: 'nueva' })}><Plus aria-hidden />Nueva tarea</Button>}
+    </>
+  )) : !isBarber && <Button type="button" onClick={() => void handleNuevaPeticion()}><Plus aria-hidden />Nueva petición</Button>;
+
+  const barraAlcance = (tieneMisTareas || usaFiltros) && (
+    <div className="flex flex-wrap items-center gap-2">
+      {tieneMisTareas && (
+        <SegmentedControl ariaLabel="Qué tareas ver" className="w-auto min-w-[14rem] flex-1 sm:flex-none" value={alcance}
+          onChange={v => elegirAlcance(v as AlcanceTareas)}
+          options={[{ value: 'mias', label: 'Mis tareas' }, { value: 'negocio', label: 'Negocio' }]} />
+      )}
+      {usaFiltros && (
+        <TareasFiltros responsable={filtroResp} onResponsable={setFiltroResp} responsables={responsables.data ?? []}
+          sucursales={multiSucursal ? sucursales.map(s => ({ id: s.id, nombre: s.nombre })) : null}
+          sucursal={filtroSucursal} onSucursal={v => { setFiltroSucursal(v); setFiltroResp('todos'); }}
+          onQuitar={() => { setFiltroResp('todos'); setFiltroSucursal('todas'); }} />
+      )}
+    </div>
+  );
+
+  let listaTareas: ReactNode;
+  if (!hasData) {
+    listaTareas = error ? <TareasLoadError subject="las tareas" retry={refetch} pending={isFetching} /> : null;
+  } else if (!hayAgenda && !semanaLista) {
+    listaTareas = null; // espera la semana para no confundir "todo al día" con "sin tareas".
+  } else if (!hayAgenda) {
+    if (filtrosActivos) {
+      listaTareas = <FiltroVacio onQuitar={() => { setFiltroResp('todos'); setFiltroSucursal('todas'); }} />;
+    } else if (alcance === 'mias') {
+      listaTareas = (
+        <p className="px-1 py-2 text-sm text-muted-foreground">
+          No tenés tareas pendientes.{' '}
+          <Button type="button" variant="link" className="h-auto p-0" onClick={() => elegirAlcance('negocio')}>Ver Negocio</Button>
+        </p>
+      );
+    } else if (abiertasSinFiltro.length > 0 || resueltasSemana.length > 0 || existeHistorial || semanaQuery.existeHistorial.isLoading) {
+      listaTareas = semanaQuery.existeHistorial.isLoading && !existeHistorial && resueltasSemana.length === 0 ? null : (
+        <div className="rounded-xl border border-border bg-card py-10 shadow-sm">
+          <EmptyState icon={Sun} title="Todo al día" description="No hay nada pendiente. Cuando haya una tarea nueva, aparece acá." />
+        </div>
+      );
+    } else {
+      listaTareas = (
+        <div className="rounded-xl border border-border bg-card py-12 shadow-sm">
+          {canManageTareas ? (
+            <EmptyState icon={ClipboardList} title="Organizá el trabajo del local"
+              description="Asigná pendientes a una persona o a todo el equipo, y dejá como Tareas automáticas las que se repiten: Vittro las crea solas en cada fecha."
+              action={(
+                <div className="flex flex-wrap justify-center gap-2">
+                  <Button type="button" onClick={() => setForm({ tipo: 'nueva' })}><Plus aria-hidden />Nueva tarea</Button>
+                  <Button type="button" variant="outline" onClick={() => setForm({ tipo: 'nueva', automatica: true })}><Repeat aria-hidden />Nueva Tarea automática</Button>
+                </div>
+              )} />
+          ) : (
+            <EmptyState icon={ClipboardList} title="Todavía no hay tareas" description="Cuando te asignen una tarea, la vas a ver acá." />
+          )}
+        </div>
+      );
+    }
+  } else {
+    listaTareas = (
+      <div className="space-y-6">
+        {agenda.atencion.length > 0 && (
+          <TareasSeccion ref={atencionRef} id="tareas-atencion" titulo="Necesitan atención" cantidad={agenda.atencion.length} icon={AlertTriangle} tono="atencion">
+            <ListaTareas>{agenda.atencion.map(i => filaTarea(i, 'atencion'))}</ListaTareas>
+          </TareasSeccion>
+        )}
+        <TareasSeccion id="tareas-hoy" titulo="Hoy" contexto={capital(formatDiaLargo(today))} cantidad={agenda.hoy.length || undefined}>
+          {agenda.hoy.length > 0 ? <ListaTareas>{agenda.hoy.map(i => fila(i, 'hoy'))}</ListaTareas> : (
+            <p className="px-1 py-2 text-sm text-muted-foreground">Nada pendiente para hoy.</p>
+          )}
+        </TareasSeccion>
+        {agenda.proximas.length > 0 && (
+          <TareasSeccion id="tareas-proximas" titulo="Próximas" cantidad={agenda.proximas.length} icon={CalendarClock}>
+            <ListaTareas>{agenda.proximas.map(i => fila(i, 'proximas'))}</ListaTareas>
+          </TareasSeccion>
+        )}
+        {agenda.sinFecha.length > 0 && (
+          <TareasSeccion id="tareas-sin-fecha" titulo="Sin fecha" contexto="Las más antiguas primero" cantidad={agenda.sinFecha.length}>
+            <ListaTareas>{agenda.sinFecha.map(i => filaTarea(i, 'sinFecha'))}</ListaTareas>
+          </TareasSeccion>
+        )}
+      </div>
+    );
+  }
+
+  // En el primer uso (sin historial ni nada esta semana) no suma: el vacío ya explica qué hacer.
+  const seccionResueltas = hasData && (hayAlgoEstaSemana || existeHistorial) && (
+    <Collapsible open={resueltasAbiertas} onOpenChange={setResueltasAbiertas} className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+        <h2 className="text-sm font-semibold text-foreground">
+          <CollapsibleTrigger asChild>
+            <button type="button" className="hit-area-expand inline-flex items-center gap-1.5 rounded-md py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${resueltasAbiertas ? 'rotate-180' : ''}`} aria-hidden />
+              Resueltas esta semana
+              <span className="font-normal tabular-nums text-muted-foreground">· {resueltasSemana.length}</span>
+            </button>
+          </CollapsibleTrigger>
+        </h2>
+        <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setVista('historial')}>
+          <History aria-hidden />Ver historial
+        </Button>
+      </div>
+      <CollapsibleContent>
+        {resueltasSemana.length > 0 ? <ListaTareas>{resueltasSemana.map(filaCompletada)}</ListaTareas> : (
+          <p className="px-1 py-2 text-sm text-muted-foreground">Todavía no se completó ninguna tarea esta semana.</p>
+        )}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+
+  const bloqueProgreso = hasData && (hayAlgoEstaSemana || progreso.anteriores > 0) && (
+    semanaLista ? (
+      <TareasProgresoSemanal progreso={progreso} rango={formatRangoSemana(week)}
+        onVerAtencion={agenda.atencion.length ? () => atencionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : undefined} />
+    ) : errorSemana ? (
+      <TareasLoadError subject="el progreso de la semana" compact
+        retry={() => { void semanaQuery.resueltas.refetch(); void semanaQuery.previstas.refetch(); }} />
+    ) : <Skeleton className="h-[5.25rem] w-full rounded-xl" />
+  );
 
   return (
-    <div className="w-full max-w-4xl lg:max-w-6xl mx-auto space-y-6 animate-fade-in">
-      {/* Header */}
-      <PageHeader
-        title="Tareas"
-        icon={ClipboardList}
-        subtitle={(
-          <span className="block max-w-2xl">
-            Gestioná las tareas internas del equipo, asigná responsables y revisá el estado de cada pendiente operativo.
-          </span>
-        )}
-        actions={isTareasTab ? (
-          <>
-            {canManageTareas && !showCompletedHistory && !showRecurrencias && (
-              <Button onClick={handleNuevaTarea}>
-                <Plus className="h-4 w-4 mr-2" />Nueva tarea
-              </Button>
-            )}
-            {!showRecurrencias && (showCompletedHistory ? (
-              <Button variant="outline" onClick={() => setShowCompletedHistory(false)}>
-                <ArrowLeft className="h-4 w-4 mr-2" />Volver a tareas activas
-              </Button>
-            ) : (
-              <Button variant="outline" onClick={() => setShowCompletedHistory(true)}>
-                <ChartSpline className="h-4 w-4 mr-2" />Historial ({tareasCompletadas.length})
-              </Button>
-            ))}
-          </>
-        ) : (
-          !isBarber && (
-            <Button onClick={handleNuevaPeticion}>
-              <Plus className="h-4 w-4 mr-2" />Nueva petición
-            </Button>
-          )
-        )}
-        actionsLayout="inline"
-      />
+    <div className="w-full space-y-6 animate-fade-in">
+      <PageHeader title="Tareas" icon={ClipboardList} actionsLayout="inline" actions={accionesHeader || undefined}
+        subtitle="El trabajo del local, día a día." />
 
-
-      <TareaFormDialog
-        open={showForm}
-        onOpenChange={(o) => { setShowForm(o); if (!o) setEditingTarea(null); }}
-        barbers={barbers}
-        onSubmit={tarea => addTarea.mutate(tarea)}
-        onUpdate={(id, patch) => {
-          const { id: _omit, ...rest } = patch;
-          updateTarea.mutate({ id, ...rest });
-        }}
-        isPending={addTarea.isPending || updateTarea.isPending}
-        tipo={isTareasTab ? 'tarea' : 'peticion'}
-        creadorNombre={peticionCreador?.nombre}
-        tarea={editingTarea}
-      />
-
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setFiltroEstado('todos'); setShowCompletedHistory(false); setShowRecurrencias(false); }}>
+      <Tabs value={activeTab} onValueChange={v => { setActiveTab(v); setVista('lista'); }}>
         <TabsList variant="underline">
           <TabsTrigger value="tareas" variant="underline" className="group">
-            <ListChecks className="h-4 w-4" />
-            Tareas
-            <TabBadge count={tareasAdmin.length} />
+            <ListChecks className="h-4 w-4" aria-hidden />Tareas<TabBadge count={tareasInternas.filter(t => !ocultas.has(t.id) && coincideFiltro(t, filtro)).length} />
           </TabsTrigger>
           <TabsTrigger value="peticiones" variant="underline" className="group">
-            <Inbox className="h-4 w-4" />
-            Peticiones
-            <TabBadge count={peticiones.length} />
+            <Inbox className="h-4 w-4" aria-hidden />Peticiones<TabBadge count={peticionesAbiertas} />
           </TabsTrigger>
         </TabsList>
 
-        {/* Filters bar */}
-        <div className="flex flex-wrap gap-2 mt-4">
-          {!showRecurrencias && !(isTareasTab && showCompletedHistory) && (
-            <Select value={filtroEstado} onValueChange={setFiltroEstado}>
-              <SelectTrigger className="w-[180px] h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {estadoOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          )}
-
-          {!showRecurrencias && isTareasTab && (
-            <Select value={filtroResp} onValueChange={setFiltroResp}>
-              <SelectTrigger className="w-[200px] h-9"><SelectValue placeholder="Responsable" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos los responsables</SelectItem>
-                <SelectItem value="__team__">Todo el equipo</SelectItem>
-                {activeBarbers.map(b => (
-                  <SelectItem key={b.id} value={b.id}>{getBarberDisplayName(b)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-
-          {!showRecurrencias && !(isTareasTab && showCompletedHistory) && (
-            <Select value={filtroFecha} onValueChange={setFiltroFecha}>
-              <SelectTrigger className="w-[180px] h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {FECHA_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          )}
-
-          {!showRecurrencias && showSucursalFilter && (
-            <Select value={filtroSucursal} onValueChange={setFiltroSucursal}>
-              <SelectTrigger className="w-[180px] h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todas">Todas las sucursales</SelectItem>
-                {sucursales.map(s => <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          )}
-
-          {isTareasTab && canViewRecurrentes && (
-            <Button
-              variant={showRecurrencias ? 'secondary' : 'outline'}
-              size="sm"
-              className="h-9"
-              onClick={() => setShowRecurrencias(v => !v)}
-            >
-              <Repeat className="h-4 w-4 mr-2" />Tareas automáticas
-            </Button>
-          )}
-        </div>
-
-
-        <TabsContent value="tareas" className="mt-4">
-          {showRecurrencias ? (
-            <RecurrentesPanel barbers={barbers} onClose={() => setShowRecurrencias(false)} />
-          ) : showCompletedHistory ? (
-            <div className="space-y-3">
-              <div className="flex items-baseline justify-between">
-                <h2 className="text-lg font-semibold text-foreground">Tareas completadas</h2>
-                <span className="text-xs text-muted-foreground">{tareasCompletadas.length} tarea{tareasCompletadas.length === 1 ? '' : 's'}</span>
-              </div>
-              {tareasCompletadas.length === 0 ? (
-                <Card>
-                  <CardContent className="py-12">
-                    <EmptyState
-                      icon={Inbox}
-                      title="Sin tareas completadas"
-                      description="Cuando se completen tareas, vas a poder revisarlas acá con el detalle de quién y cuándo."
-                    />
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {tareasCompletadas.map(t => <CompletadaCard key={t.id} t={t} />)}
-                </div>
-              )}
-            </div>
-          ) : tareasAdmin.length === 0 ? (
-            <Card>
-              <CardContent className="py-12">
-                <EmptyState
-                  icon={Inbox}
-                  title="No hay tareas activas"
-                  description={canManageTareas ? 'Creá una tarea para asignarla a un barbero o a todo el equipo.' : 'Aún no tenés tareas asignadas.'}
-                />
-              </CardContent>
-            </Card>
+        <TabsContent value="tareas" className="mt-5">
+          {vista === 'automaticas' ? (
+            <RecurrentesPanel recurrentes={recurrentes} today={today} focoId={focoAutomatica} ultimaOcurrencia={ultimaOcurrencia}
+              onVolver={() => { setVista('lista'); setFocoAutomatica(null); }}
+              onNueva={canManageTareas ? () => setForm({ tipo: 'nueva', automatica: true }) : undefined}
+              onEditar={receta => setForm({ tipo: 'editar-automatica', receta })} />
+          ) : vista === 'historial' ? (
+            <TareasHistorial onVolver={() => setVista('lista')}
+              filtros={canManageTareas ? { responsables: responsables.data ?? [], sucursales: multiSucursal ? sucursales.map(s => ({ id: s.id, nombre: s.nombre })) : null } : null}
+              metaDe={metaCompletada} onAbrir={t => setDetalle({ kind: 'tarea', tarea: t, vencida: false })}
+              menuDe={t => menuTarea(t, () => setDetalle({ kind: 'tarea', tarea: t, vencida: false }))} />
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
-              {tareasAdmin.map(t => <TareaCard key={t.id} t={t} />)}
+            <div className="space-y-5">
+              {barraAlcance}
+              <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
+                {bloqueProgreso && <div className="xl:sticky xl:top-4 xl:col-start-2 xl:row-start-1">{bloqueProgreso}</div>}
+                <div className="min-w-0 space-y-6 xl:col-start-1 xl:row-start-1">
+                  {listaTareas}
+                  {seccionResueltas}
+                </div>
+              </div>
             </div>
           )}
         </TabsContent>
 
-        <TabsContent value="peticiones" className="mt-4">
-          {peticiones.length === 0 ? (
-            <Card>
-              <CardContent className="py-12">
-                <EmptyState
-                  icon={Inbox}
-                  title="No hay peticiones"
-                  description="Las peticiones del equipo aparecerán acá para que las gestiones."
-                />
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
-              {peticiones.map(t => <PeticionCard key={t.id} t={t} />)}
-            </div>
-          )}
+        <TabsContent value="peticiones" className="mt-5">
+          <PeticionesLista peticiones={peticiones} hasData={hasData} error={error} onReintentar={() => void refetch()} timezone={timezone}
+            diasDefault={diasPeticion} sucursales={multiSucursal ? sucursales.map(s => ({ id: s.id, nombre: s.nombre })) : null}
+            sucursalNombre={id => (multiSucursal ? sucursalNombre(id) : null)} puedeEliminar={canManageConfig}
+            onResolver={resolverPeticion} onEliminar={setEliminar} resolviendo={resolviendoPeticion} />
         </TabsContent>
       </Tabs>
+
+      <TareaDetalleDrawer detalle={detalleVigente} onClose={() => setDetalle(null)} sucursalNombre={sucursalNombre} timezone={timezone}
+        diasVencimiento={diasVencimiento} automaticaTitulo={automaticaTitulo(recurrenciaDetalle)}
+        enCurso={tareaDetalle ? enCurso(tareaDetalle.id) : null} bloqueada={acciones.isPending}
+        onCompletar={detalleActua ? () => solicitar({ id: tareaDetalle!.id, version: tareaDetalle!.accion_version!, accion: 'completar' }, tareaDetalle!) : undefined}
+        onIniciar={detalleActua && tareaDetalle!.estado !== 'en_progreso' ? () => solicitar({ id: tareaDetalle!.id, version: tareaDetalle!.accion_version!, accion: 'iniciar' }, tareaDetalle!) : undefined}
+        onEditar={canManageTareas && tareaDetalle && detalleAbierta ? () => { setForm({ tipo: 'editar-tarea', tarea: tareaDetalle }); setDetalle(null); } : undefined}
+        onVerAutomatica={recurrenciaDetalle && canViewRecurrentes ? () => abrirAutomatica(recurrenciaDetalle) : undefined} />
+
+      <TareaFormDrawer modo={form} onClose={() => setForm(null)}
+        onCrear={payload => addTarea.mutateAsync(payload)}
+        onActualizarTarea={async (id, patch) => { await updateTarea.mutateAsync({ id, ...patch }); feedback.success('Tarea actualizada'); }}
+        onActualizarAutomatica={patch => recurrentes.updateReceta.mutateAsync(patch)}
+        automaticaTitulo={id => automaticaTitulo(id)}
+        onEditarAutomatica={canViewRecurrentes ? id => { setForm(null); editarAutomatica(id); } : undefined} />
+
+      <PeticionFormDrawer open={!!peticionForm} onClose={() => setPeticionForm(null)} creadorNombre={peticionForm?.creador}
+        onCrear={payload => addTarea.mutateAsync(payload)} />
+
+      <TareaEliminarDialog onCancelar={() => setEliminar(null)} onConfirmar={confirmarEliminar}
+        objetivo={eliminar ? { titulo: eliminar.titulo, tipo: eliminar.tipo, automatica: !!eliminar.recurrencia_id, automaticaTitulo: automaticaTitulo(eliminar.recurrencia_id) } : null} />
+
+      {pinAction && (
+        <TareaActionPinDialog key={`${pinAction.id}:${pinAction.accion}`} pending={acciones.isPending}
+          onClose={() => setPinAction(null)} onSubmit={pin => ejecutar(pinAction, pinAction.tarea, pin)} />
+      )}
     </div>
   );
 }
+
+function FiltroVacio({ onQuitar }: { onQuitar: () => void }) {
+  return (
+    <p className="px-1 py-2 text-sm text-muted-foreground">
+      Ninguna tarea coincide con los filtros.{' '}
+      <Button type="button" variant="link" className="h-auto p-0" onClick={onQuitar}>Quitar filtros</Button>
+    </p>
+  );
+}
+

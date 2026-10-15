@@ -3,7 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useOrganization } from '@/contexts/OrganizationContext';
-import { useTareas, type Tarea } from '@/hooks/useTareas';
+import { type Tarea } from '@/hooks/useTareas';
+import { useSucursal } from '@/contexts/SucursalContext';
 import { getEventDef, resolveNotificationEventType } from '@/lib/notifications/catalog';
 import { useNotificationPreferences } from '@/hooks/useNotificationPreferences';
 
@@ -71,7 +72,7 @@ export interface NotificationItem {
 export function useNotifications() {
   const { user } = useAuth();
   const { organization } = useOrganization();
-  const { tareas } = useTareas();
+  const { currentSucursal, isAllMode, isLoading: scopeLoading, error: scopeError } = useSucursal();
   const { preferences } = useNotificationPreferences();
   const queryClient = useQueryClient();
 
@@ -106,6 +107,21 @@ export function useNotifications() {
     enabled: !!user?.id && !!organization?.id,
   });
 
+  // Solo las fuentes de las últimas 100 entregas, con el mismo scope y RLS que antes.
+  const sourceIds = useMemo(() => [...new Set(deliveries.filter(d => d.notifications?.source_module === 'tareas' && d.notifications?.source_table === 'tareas')
+    .map(d => d.notifications.source_id).filter((id): id is string => !!id))].sort(), [deliveries]);
+  const { data: tareas = [] } = useQuery({
+    queryKey: ['tareas', 'notification_sources', organization?.id, user?.id, currentSucursal?.id, sourceIds],
+    enabled: !!organization?.id && !!user?.id && !scopeLoading && !scopeError && (!!currentSucursal || isAllMode) && sourceIds.length > 0,
+    queryFn: async ({ signal }) => {
+      let query = supabase.from('tareas').select('*').eq('organization_id', organization!.id).in('id', sourceIds).abortSignal(signal);
+      if (currentSucursal) query = query.eq('sucursal_id', currentSucursal.id);
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data ?? []) as Tarea[];
+    },
+  });
+
   // 4. Compatibilidad: lecturas legacy (notification_reads) por (source_type, source_id)
   // notification_reads.source_type guarda el mismo string que notifications.type.
   const { data: legacyReads = [] } = useQuery({
@@ -134,9 +150,11 @@ export function useNotifications() {
   // 5. Filtrar fuentes activas (tareas/peticiones aún visibles y vigentes)
   const tareasById = useMemo(() => {
     const m = new Map<string, Tarea>();
-    for (const t of tareas ?? []) m.set(t.id, t);
+    if (!scopeLoading && !scopeError && (currentSucursal || isAllMode)) {
+      for (const t of tareas) m.set(t.id, t);
+    }
     return m;
-  }, [tareas]);
+  }, [tareas, scopeLoading, scopeError, currentSucursal, isAllMode]);
 
   const notifications: NotificationItem[] = useMemo(() => {
     const out: NotificationItem[] = [];

@@ -1,6 +1,6 @@
 # Estado actual — Vittro
 
-Última actualización: 2026-10-12
+Última actualización: 2026-10-14
 
 ## Notificaciones — Etapa 1 de seguridad
 
@@ -69,7 +69,7 @@ funciones, permisos, triggers, constraints y cron, y una **prueba de humo dentro
 Advisors: sin hallazgos nuevos de este build (solo los `trg_*` heredados con `EXECUTE` por defecto).
 
 **Pendiente / abierto:** QA manual de Sebastián (`docs/MODULOS/tareas.md`); **Etapa 4**
-(rediseño de la pantalla); `deleteReceta` usa la fecha del navegador y `useTareas` no pagina; una temporal que empieza o
+(rediseño de la pantalla); fecha del navegador y falta de paginación corregidas localmente en 4A-1 (ver abajo); una temporal que empieza o
 vence sin ningún cambio se refleja en las Tareas automáticas con hasta una hora de demora (sincronización horaria).
 La **Etapa 3** (saneamiento) ya se ejecutó: ver la sección siguiente.
 
@@ -98,6 +98,57 @@ evento `peticion_*`), **24/24 mutaciones detectadas**, Etapa 1 **44/44**, Vitest
 tsconfig.app.json` con los mismos 5 errores preexistentes (`abortSignal`), build OK, ESLint sin problemas en el archivo tocado. En
 producción: 27 verificaciones del backup, ensayo de restauración, 20 post-condiciones antes y después del `COMMIT`, prueba de
 los CHECK en una transacción revertida y Security Advisors sin hallazgos nuevos (los mismos 7 de antes).
+
+## Tareas — BUILD 4A completo localmente (2026-10-14)
+
+**Implementación local, sin publicación ni aplicación en producción.** Principal → Tareas
+(`src/components/TareasPanel.tsx`, `src/hooks/useTareas.ts`): Hoy y vencimientos por zona organizacional,
+errores con reintento, abiertas paginadas sin corte silencioso, completadas bajo demanda
+(`src/hooks/useTareasHistorial.ts`). Nueva tarea (`src/components/tareas/TareaFormDialog.tsx`): sucursal
+obligatoria creando desde Todas y responsables estructurales (`src/hooks/useTareaResponsables.ts`).
+Tareas automáticas (`src/components/tareas/RecurrentesPanel.tsx`, `src/hooks/useTareasRecurrentes.ts`):
+errores explícitos, paginación y fecha organizacional al eliminar futuras pendientes. Campana global
+(`src/hooks/useNotifications.ts`): consulta únicamente fuentes de sus entregas, sin cargar el módulo completo.
+El mismo 4A agrega acciones servidor/PIN, timestamps, deshacer de 30 segundos y concurrencia
+(`src/hooks/useTareaAcciones.ts`, `supabase/functions/tareas-action/`,
+`supabase/migrations/20261014120000_tareas_acciones_controladas.sql`). SECURITY DEFINER solo privado,
+excepción local autorizada; Manager limitado por sucursales reales, también en recetas.
+43 SQL de acciones, 44 de Etapa 1, 82 de Etapas 2–3, 18 comerciales; 24 mutaciones previas y 12 nuevas detectadas.
+Vitest 199/32 y build OK, mismos cinco errores TypeScript y 378 errores lint previos.
+También se cerró localmente el acceso directo al hash del PIN; cinco consumidores de integrantes
+usan columnas explícitas sin alterar sus filtros. Requiere recarga de pestañas antiguas en una futura
+publicación coordinada. Detalle, archivos, límites y QA: `docs/MODULOS/tareas.md`.
+No existe BUILD 4A-2. QA autenticado de despliegue y visual pendiente.
+
+**Corrección final de 4A (2026-10-14, misma rama, autorizada antes de 4B):** lectura canónica de
+proyecciones R1 `public.tareas_previstas(desde, hasta, sucursal)` (entrada INVOKER sobre
+`tareas_private.previstas`, DEFINER solo para usar el calendario del motor cerrado a clientes; mismo
+alcance que la lectura de tareas, organización del perfil, rango ≤ 14 días, nunca fechas pasadas ni
+ocurrencias ya creadas), índice parcial del historial por `completada_at` (con evidencia de plan) y
+tipos regenerados. 47 SQL de acciones y **17/17** mutaciones; Etapa 1 44, Etapas 2–3 82 + todas sus
+mutaciones, comercial 18. Sigue sin aplicarse en producción.
+
+## Tareas — BUILD 4B: rework UX/UI completo, local (2026-10-14)
+
+**Implementación local sobre el mismo worktree de 4A (`codex/tareas-4a-1`), sin commit, sin push, sin
+despliegue.** Principal → Tareas (`src/components/TareasPanel.tsx`) deja la grilla de tarjetas: lista vertical
+de filas (`src/components/tareas/TareaFila.tsx`) organizada en Necesitan atención / Hoy / Próximas / Sin fecha
+(`src/lib/tareasAgenda.ts`), progreso semanal lunes–domingo de la organización
+(`src/components/tareas/TareasProgresoSemanal.tsx`) con Programadas de Tareas automáticas calculadas por la base
+(`src/hooks/useTareasSemana.ts`), y Resueltas esta semana plegada con acceso al Historial
+(`src/components/tareas/TareasHistorial.tsx`, por fecha de completado). "Mis tareas | Negocio" solo para
+supervisores con integrante vinculado, recordado por usuario + organización (`src/hooks/useTareasAlcance.ts`);
+barbero y cuenta de sucursal sin selector ni filtros. Completar en un toque con "Deshacer" del servidor;
+Iniciar también en vencidas; Editar/Eliminar en el menú `⋯`; eliminar con confirmación. Detalle en panel
+(`TareaDetalleDrawer.tsx`). Un solo formulario sobre `DrawerForm` + RHF + Zod (`TareaFormDrawer.tsx`) para
+tarea y Tarea automática, con Hoy por defecto, "Sin fecha" visible y repetición dentro del mismo panel;
+Peticiones con su propio `PeticionFormDrawer.tsx` y lista (`PeticionesLista.tsx`). Tareas automáticas como
+subvista de configuración (`RecurrentesPanel.tsx`, `RecurrenteFila.tsx`). Se eliminaron `TareaFormDialog.tsx`,
+`TareaRecurrenteFormDialog.tsx` y `RecurrenteCard.tsx`; `RepeatPicker`/`CustomRepeatSheet` siguen por Gastos y Bono fijo.
+Vitest **235/33** (base 4A 199/32), build OK, `tsc` raíz exit 0 y `-p tsconfig.app.json` con los mismos 5 errores,
+lint global 378 errores / 49 advertencias (base 378/50), detector de Impeccable sin hallazgos.
+QA visual con datos sintéticos (`qa/tareas.html`, sin sesión real) a 375/768/1024/1280+; **QA autenticado
+pendiente**. 4C (avisos semanales) no iniciado. Detalle: `docs/MODULOS/tareas.md`.
 
 ## Finanzas — modo ficticio
 

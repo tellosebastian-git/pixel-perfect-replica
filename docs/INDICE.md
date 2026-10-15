@@ -66,7 +66,7 @@ la dejó obsoleta.
 - [ ] Mi Negocio (general)
 - [ ] Clientes
 - [ ] Estadísticas
-- [x] `tareas.md` — Tareas y Tareas automáticas: modelo, calendario canónico, motor/cron, recuperación, pausas, vencimientos, permisos y pruebas (Etapa 2, 2026-10-12; el saneamiento histórico es la Etapa 3)
+- [x] `tareas.md` — Tareas y Tareas automáticas: motor/cron e integridad de Etapas 2–3; BUILD 4A completo localmente (2026-10-14): datos, acciones seguras/PIN, permisos, concurrencia y deshacer; sin despliegue. 43 SQL, 12 mutaciones y 199 Vitest aprobadas; QA de publicación documentado. Ubicación: Principal → Tareas (`src/components/TareasPanel.tsx`), seguridad en `supabase/migrations/20261014120000_tareas_acciones_controladas.sql`.
 
 Los módulos sin marcar no tienen documentación propia todavía — no auditados
 a fondo. No asumir que están al día con el canon de diseño solo porque no

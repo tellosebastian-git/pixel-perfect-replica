@@ -4252,6 +4252,10 @@ export type Database = {
           updated_at: string
           vencida_at: string | null
           vencimiento_dias: number | null
+          "accion_version": string,
+          "iniciada_at": string | null,
+          "iniciada_por_nombre": string | null,
+          "iniciada_por_id": string | null,
         }
         Insert: {
           asignado_a_id?: string | null
@@ -4282,6 +4286,10 @@ export type Database = {
           updated_at?: string
           vencida_at?: string | null
           vencimiento_dias?: number | null
+          "accion_version"?: string,
+          "iniciada_at"?: string | null,
+          "iniciada_por_nombre"?: string | null,
+          "iniciada_por_id"?: string | null,
         }
         Update: {
           asignado_a_id?: string | null
@@ -4312,6 +4320,10 @@ export type Database = {
           updated_at?: string
           vencida_at?: string | null
           vencimiento_dias?: number | null
+          "accion_version"?: string,
+          "iniciada_at"?: string | null,
+          "iniciada_por_nombre"?: string | null,
+          "iniciada_por_id"?: string | null,
         }
         Relationships: [
           {
@@ -6276,6 +6288,17 @@ export type Database = {
         Returns: boolean
       }
       validate_portal_links: { Args: { p_links: Json }; Returns: boolean }
+      "tareas_accion_pin":
+{ Args: { "p_accion": string,"p_cuenta": string,"p_pin_hash": string,"p_tarea": string,"p_version": string }; Returns: Json
+                           },
+      "tareas_accion":
+{ Args: { "p_accion": string,"p_tarea": string,"p_version": string }; Returns: Json
+                           },
+      "tareas_previstas":
+{ Args: { "p_desde": string,"p_hasta": string,"p_sucursal"?: string }; Returns: {
+              "asignado_a_id": string,"asignado_a_nombre": string,"assignment_scope": string,"descripcion": string,"fecha": string,"hora": string,"recurrencia_id": string,"sucursal_id": string,"titulo": string
+            }[]
+                           }
     }
     Enums: {
       app_role:
