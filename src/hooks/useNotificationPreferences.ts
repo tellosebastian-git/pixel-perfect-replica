@@ -40,7 +40,7 @@ export function useNotificationPreferences() {
     return { roles, isSucursalAccount, isBarber };
   }, [isOwner, isGeneralManager, isManager, isBarber, isSucursalAccount]);
 
-  const { data: preferenceRows = [] } = useQuery({
+  const { data: preferenceRows = [], isSuccess: preferencesReady, isError: preferencesError } = useQuery({
     queryKey: ['notification_preferences', user?.id, organization?.id],
     queryFn: async () => {
       if (!user?.id) return [] as PreferenceRow[];
@@ -119,6 +119,9 @@ export function useNotificationPreferences() {
 
   return {
     preferences,
+    /** Ya se leyeron las preferencias guardadas (sin esto, un aviso apagado podría aparecer un instante). */
+    preferencesReady,
+    preferencesError,
     preferencesFull,
     scope,
     getMode,

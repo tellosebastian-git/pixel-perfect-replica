@@ -23,7 +23,8 @@ import {
 
 interface NotificationsBellProps {
   collapsed?: boolean;
-  onNavigate?: () => void;
+  /** Recibe la notificación tocada: las de Tareas llevan a esa tarea concreta. */
+  onNavigate?: (n: NotificationItem) => void;
 }
 
 const TYPE_META: Record<string, { label: string; icon: typeof ClipboardList; tone: string }> = {
@@ -132,8 +133,8 @@ export function NotificationsBell({ collapsed, onNavigate }: NotificationsBellPr
 
   const showSucursalFilter = isOwner || isGeneralManager;
 
-  // Tipos disponibles según catálogo permitido por rol.
-  const allowedTypes = useMemo(() => getCatalogForRole(scope), [scope]);
+  // Tipos disponibles según catálogo permitido por rol (sin los avisos que no llegan a la campana).
+  const allowedTypes = useMemo(() => getCatalogForRole(scope).filter(e => e.inBell !== false), [scope]);
   const allowedCategories = useMemo(() => {
     const set = new Set<EventCategory>();
     for (const e of allowedTypes) set.add(e.category);
@@ -153,7 +154,7 @@ export function NotificationsBell({ collapsed, onNavigate }: NotificationsBellPr
       markAsRead.mutate({ id: n.id, source_type: n.source_type, source_id: n.source_id });
     }
     setOpen(false);
-    onNavigate?.();
+    onNavigate?.(n);
   };
 
   const applyFilters = (items: NotificationItem[]): NotificationItem[] => {
@@ -365,6 +366,7 @@ export function NotificationsBell({ collapsed, onNavigate }: NotificationsBellPr
               collapsed && 'hit-area-expand justify-center gap-0 px-2',
             )}
             title={collapsed ? `Notificaciones${unreadCount ? ` (${badgeLabel})` : ''}` : undefined}
+            aria-label={collapsed ? `Notificaciones${unreadCount ? `, ${badgeLabel} sin leer` : ''}` : undefined}
           >
             <span className="relative inline-flex shrink-0">
               <Bell className="h-5 w-5 transition-transform duration-150 group-hover:scale-[1.06]" />
@@ -417,7 +419,7 @@ export function NotificationsBell({ collapsed, onNavigate }: NotificationsBellPr
               <Filter className="h-3.5 w-3.5 text-muted-foreground" />
               {showSucursalFilter && (
                 <Select value={filterSucursal} onValueChange={setFilterSucursal}>
-                  <SelectTrigger className="h-7 text-xs w-auto min-w-[110px] gap-1">
+                  <SelectTrigger aria-label="Filtrar por sucursal" className="h-7 text-xs w-auto min-w-[110px] gap-1">
                     <SelectValue placeholder="Sucursal" />
                   </SelectTrigger>
                   <SelectContent>
@@ -429,7 +431,7 @@ export function NotificationsBell({ collapsed, onNavigate }: NotificationsBellPr
                 </Select>
               )}
               <Select value={filterCategory} onValueChange={(v) => setFilterCategory(v as EventCategory | 'all')}>
-                <SelectTrigger className="h-7 text-xs w-auto min-w-[110px] gap-1">
+                <SelectTrigger aria-label="Filtrar por categoría" className="h-7 text-xs w-auto min-w-[110px] gap-1">
                   <SelectValue placeholder="Categoría" />
                 </SelectTrigger>
                 <SelectContent>
@@ -440,7 +442,7 @@ export function NotificationsBell({ collapsed, onNavigate }: NotificationsBellPr
                 </SelectContent>
               </Select>
               <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger className="h-7 text-xs w-auto min-w-[100px] gap-1">
+                <SelectTrigger aria-label="Filtrar por tipo" className="h-7 text-xs w-auto min-w-[100px] gap-1">
                   <SelectValue placeholder="Tipo" />
                 </SelectTrigger>
                 <SelectContent>
@@ -453,7 +455,7 @@ export function NotificationsBell({ collapsed, onNavigate }: NotificationsBellPr
                 </SelectContent>
               </Select>
               <Select value={filterDate} onValueChange={(v) => setFilterDate(v as DateRange)}>
-                <SelectTrigger className="h-7 text-xs w-auto min-w-[90px] gap-1">
+                <SelectTrigger aria-label="Filtrar por fecha" className="h-7 text-xs w-auto min-w-[90px] gap-1">
                   <SelectValue placeholder="Fecha" />
                 </SelectTrigger>
                 <SelectContent>

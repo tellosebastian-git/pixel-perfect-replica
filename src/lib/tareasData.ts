@@ -109,6 +109,14 @@ export function mensajeTareas(error: unknown, fallback: string): string {
   return fallback;
 }
 
+/** Una tarea puntual con el acceso del usuario (RLS): `null` si no existe o ya no es visible para él. */
+export async function fetchTareaPorId(organizationId: string, id: string): Promise<Tarea | null> {
+  const { data, error } = await supabase.from('tareas').select('*')
+    .eq('organization_id', organizationId).eq('id', id).maybeSingle();
+  if (error) throw error;
+  return (data ?? null) as Tarea | null;
+}
+
 /** Validación adicional de datos, con la sesión/RLS existentes; no concede permisos. */
 export async function requireTaskBranch(organizationId: string, sucursalId: string | null) {
   if (!sucursalId) throw new Error('Seleccioná una sucursal para crear la tarea.');

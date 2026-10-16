@@ -151,6 +151,21 @@ export function resueltasDeLaSemana(resueltas: Tarea[], week: WeekRange, timezon
 
 export type AlcanceTareas = 'mias' | 'negocio';
 
+/** Quién mira: define si se ofrecen Iniciar/Completar. El servidor (4A) vuelve a decidir en cada acción. */
+export interface OperadorTareas {
+  supervisor: boolean;
+  cuentaSucursal: boolean;
+  barbero: boolean;
+  miBarberoId: string | null;
+}
+
+/** Misma regla en Principal → Tareas y en el aviso semanal: no se ofrece lo que el servidor va a rechazar. */
+export function puedeOperarTarea(t: Pick<Tarea, 'assignment_scope' | 'asignado_a_id' | 'accion_version'>, quien: OperadorTareas): boolean {
+  if (!t.accion_version) return false;
+  if (quien.supervisor || quien.cuentaSucursal) return true;
+  return quien.barbero && (t.assignment_scope === 'team' || (!!quien.miBarberoId && t.asignado_a_id === quien.miBarberoId));
+}
+
 export interface FiltroTareas {
   alcance: AlcanceTareas;
   /** `barberos.id` del usuario, para "Mis tareas". */

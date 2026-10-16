@@ -31,6 +31,13 @@ export async function regenerate(db) {
       else edits.push({start:oldShape.end-1,end:oldShape.end-1,text:`  ${f.getText(fresh)}\n        `});
     }
   }
+  // BUILD 4C: tabla de estado del aviso semanal, completa desde el generador.
+  const freshTables=at(fresh,['public','Tables']); const oldTables=at(old,['public','Tables']);
+  for(const name of ['tareas_aviso_semanal']) {
+    const f=member(freshTables,name); assert(f,`Generator missing ${name}`); const existing=member(oldTables,name);
+    edits.push(existing ? {start:existing.getStart(old),end:existing.end,text:f.getText(fresh)} :
+      {start:oldTables.end-1,end:oldTables.end-1,text:`  ${f.getText(fresh)}\n    `});
+  }
   const freshFuncs=at(fresh,['public','Functions']); const oldFuncs=at(old,['public','Functions']);
   for(const name of ['tareas_accion','tareas_accion_pin','tareas_previstas']) {
     const f=member(freshFuncs,name); assert(f); const existing=member(oldFuncs,name);

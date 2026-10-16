@@ -16,7 +16,8 @@ import { useTareasSemana } from '@/hooks/useTareasSemana';
 import { useTareaResponsables, useSucursalesDeIntegrante } from '@/hooks/useTareaResponsables';
 import { useOrganizationToday } from '@/hooks/useOrganizationToday';
 import { useTareasAlcance } from '@/hooks/useTareasAlcance';
-import { useTareaAcciones, type TareaAccionRequest } from '@/hooks/useTareaAcciones';
+import { useAccionesTarea } from '@/hooks/useAccionesTarea';
+import { useAgendaSemanal } from '@/hooks/useAgendaSemanal';
 import { useAuth } from '@/contexts/AuthContext';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { useSucursal } from '@/contexts/SucursalContext';
@@ -24,12 +25,12 @@ import { useRequirePinForAction } from '@/components/ActionPinGate';
 import { Barber } from '@/types/barbershop';
 import { feedback } from '@/lib/feedback';
 import { formatTimestampInTimezone } from '@/lib/dateUtils';
-import { mensajeTareas } from '@/lib/tareasData';
+import { fetchTareaPorId, mensajeTareas } from '@/lib/tareasData';
+import { consumirDestinoTareas, useDestinoTareas } from '@/lib/tareasNavegacion';
 import {
-  agruparTareas, coincideFiltro, fechaDeTarea, formatDiaCorto, formatDiaLargo, formatDiaSemana, formatRangoSemana, progresoSemanal,
-  resueltasDeLaSemana, type AlcanceTareas, type ItemAgenda, type ItemTarea, type TareaPrevista,
+  agruparTareas, coincideFiltro, esVencida, fechaDeTarea, formatDiaCorto, formatDiaLargo, formatDiaSemana, formatRangoSemana,
+  puedeOperarTarea, type AlcanceTareas, type ItemAgenda, type ItemTarea, type TareaPrevista,
 } from '@/lib/tareasAgenda';
-import { TareaActionPinDialog } from './tareas/TareaActionPinDialog';
 import { TareasLoadError } from './tareas/TareasLoadError';
 import { TareaFila, MetaCuando, MetaResponsable, MetaSucursal, type AccionMenu, type EstadoFila } from './tareas/TareaFila';
 import { TareasSeccion, ListaTareas } from './tareas/TareasSeccion';
@@ -50,10 +51,8 @@ interface TareasPanelProps {
 }
 
 type Vista = 'lista' | 'automaticas' | 'historial';
-type PinPendiente = TareaAccionRequest & { tarea?: Tarea };
 
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const ERROR_ACCION = 'No pudimos realizar la acción. Actualizá la lista y reintentá.';
 
 /**
  * Principal → Tareas. Responde de un vistazo: cómo viene la semana, qué está atrasado, qué hay que
@@ -92,21 +91,11 @@ export function TareasPanel(_props: TareasPanelProps) {
   const [peticionForm, setPeticionForm] = useState<{ creador?: string } | null>(null);
   const [detalle, setDetalle] = useState<DetalleTarea | null>(null);
   const [eliminar, setEliminar] = useState<Tarea | null>(null);
-  const [pinAction, setPinAction] = useState<PinPendiente | null>(null);
   const [resolviendoPeticion, setResolviendoPeticion] = useState<string | null>(null);
-  // Completadas en este dispositivo mientras la lista se actualiza: completar se ve inmediato.
-  const [completadasLocales, setCompletadasLocales] = useState<Map<string, { tarea: Tarea; at: number }>>(new Map());
   const atencionRef = useRef<HTMLElement>(null);
-
-  // Cambiar de organización, sucursal o persona descarta cualquier estado de la anterior.
-  useEffect(() => {
-    setPinAction(null); setDetalle(null); setEliminar(null); setForm(null); setPeticionForm(null);
-    setCompletadasLocales(new Map()); setFiltroResp('todos'); setFiltroSucursal('todas'); setVista('lista');
-  }, [organization?.id, currentSucursal?.id, profile?.id]);
 
   const { tareas, hasData, isLoading, error, refetch, isFetching, dataUpdatedAt, addTarea, updateTarea, deleteTarea } = useTareas();
   const recurrentes = useTareasRecurrentes(canViewRecurrentes);
-  const acciones = useTareaAcciones();
   const misSucursales = useSucursalesDeIntegrante(miBarberoId, alcance === 'mias');
   const responsables = useTareaResponsables(currentSucursal?.id ?? (filtroSucursal === 'todas' ? null : filtroSucursal), usaFiltros);
 
@@ -116,29 +105,26 @@ export function TareasPanel(_props: TareasPanelProps) {
     responsable: usaFiltros ? filtroResp : 'todos', sucursal: usaFiltros && multiSucursal ? filtroSucursal : 'todas',
   };
 
-  const tareasInternas = tareas.filter(t => t.tipo === 'tarea');
   const peticiones = tareas.filter(t => t.tipo === 'peticion');
-  const semanaQuery = useTareasSemana(today, { necesitaExistencia: hasData && tareasInternas.length === 0 });
+  const semanaQuery = useTareasSemana(today, { necesitaExistencia: hasData && !tareas.some(t => t.tipo === 'tarea') });
   const { week } = semanaQuery;
   const resueltasServidor = semanaQuery.resueltas.data;
   const previstasServidor = semanaQuery.previstas.data;
   const semanaLista = resueltasServidor !== undefined && previstasServidor !== undefined;
-
-  const locales = useMemo(() => [...completadasLocales.values()]
-    .filter(e => !(dataUpdatedAt > e.at && semanaQuery.resueltas.dataUpdatedAt > e.at)), [completadasLocales, dataUpdatedAt, semanaQuery.resueltas.dataUpdatedAt]);
-  const ocultas = new Set(locales.map(e => e.tarea.id));
-
   const ctx = { today, week, diasVencimiento };
-  const abiertas = tareasInternas.filter(t => !ocultas.has(t.id) && coincideFiltro(t, filtro));
-  const previstas = (previstasServidor ?? []).filter(p => coincideFiltro(p, filtro));
-  const resueltas = [
-    ...(resueltasServidor ?? []),
-    ...locales.map(e => e.tarea).filter(t => !(resueltasServidor ?? []).some(r => r.id === t.id)),
-  ].filter(t => coincideFiltro(t, filtro));
-  const agenda = agruparTareas(abiertas, previstas, ctx);
-  const progreso = progresoSemanal(abiertas, resueltas, previstas, ctx);
-  const resueltasSemana = resueltasDeLaSemana(resueltas, week, timezone);
+  // Misma definición de la semana que el aviso semanal: abiertas, Programadas, resueltas y progreso.
+  const vistaSemana = useAgendaSemanal({
+    tareas, tareasActualizadas: dataUpdatedAt, resueltasServidor, resueltasActualizadas: semanaQuery.resueltas.dataUpdatedAt,
+    previstasServidor, filtro, ctx, timezone,
+  });
+  const { tareasInternas, ocultas, agenda, progreso, resueltas, resueltasSemana } = vistaSemana;
   const abiertasSinFiltro = tareasInternas.filter(t => !ocultas.has(t.id) && coincideFiltro(t, { ...filtro, responsable: 'todos', sucursal: 'todas' }));
+
+  // Cambiar de organización, sucursal o persona descarta cualquier estado de la anterior.
+  useEffect(() => {
+    setDetalle(null); setEliminar(null); setForm(null); setPeticionForm(null);
+    vistaSemana.reiniciar(); setFiltroResp('todos'); setFiltroSucursal('todas'); setVista('lista');
+  }, [organization?.id, currentSucursal?.id, profile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Refetch fallido con datos en pantalla: se conservan y se ofrece reintentar (DESIGN → Feedback).
   useEffect(() => {
@@ -157,33 +143,16 @@ export function TareasPanel(_props: TareasPanelProps) {
   const automaticaTitulo = (id: string | null) => recetaPorId(id)?.titulo ?? null;
 
   // ---------- Acciones de servidor (4A): iniciar / completar / deshacer ----------
-  const enCurso = (id: string) => (acciones.isPending && acciones.variables?.id === id
-    ? (acciones.variables.accion === 'iniciar' ? 'iniciar' : 'completar') : null);
-
-  const ejecutar = async (request: TareaAccionRequest, tarea?: Tarea, pin?: string) => {
-    const result = await acciones.mutateAsync({ ...request, pin });
-    setPinAction(null);
-    if (request.accion === 'completar' && tarea) {
-      const completada: Tarea = { ...tarea, estado: 'completada', accion_version: result.version, completada_at: result.completada_at ?? new Date().toISOString(), completada_por_nombre: result.actor_nombre };
-      setCompletadasLocales(prev => new Map(prev).set(tarea.id, { tarea: completada, at: Date.now() }));
+  // Misma lógica que el aviso semanal (useAccionesTarea): el servidor decide; acá se refleja el resultado.
+  const { solicitar, enCurso, pendiente: accionPendiente, pinDialog } = useAccionesTarea({
+    onCompletada: (tarea, completada) => {
+      vistaSemana.marcarCompletada(tarea, completada);
       setDetalle(d => (d?.kind === 'tarea' && d.tarea.id === tarea.id ? null : d));
-      // El plazo lo controla el servidor; el aviso dura lo mismo que la ventana que permite.
-      feedback.success('Tarea completada', {
-        id: `tarea-completada-${tarea.id}`, duration: 30_000,
-        action: { label: 'Deshacer', onClick: () => solicitar({ id: tarea.id, version: result.version, accion: 'deshacer' }, tarea) },
-      });
-    } else if (request.accion === 'deshacer') {
-      setCompletadasLocales(prev => { const next = new Map(prev); next.delete(request.id); return next; });
-      feedback.success('Listo: la tarea volvió a quedar abierta');
-    }
-  };
-  const solicitar = (request: TareaAccionRequest, tarea?: Tarea) => {
-    if (acciones.isPending) return;
-    if (isSucursalAccount) setPinAction({ ...request, tarea });
-    else void ejecutar(request, tarea).catch(e => feedback.error(mensajeTareas(e, ERROR_ACCION)));
-  };
+    },
+    onDeshecha: vistaSemana.desmarcarCompletada,
+  });
 
-  const puedeActuar = (t: Tarea) => canManageTareas || isSucursalAccount || (isBarber && (t.assignment_scope === 'team' || (!!miBarberoId && t.asignado_a_id === miBarberoId)));
+  const operador = { supervisor: canManageTareas, cuentaSucursal: isSucursalAccount, barbero: isBarber, miBarberoId };
   const abrirAutomatica = (id: string) => {
     setDetalle(null);
     setActiveTab('tareas'); setFocoAutomatica(id); setVista('automaticas');
@@ -193,6 +162,63 @@ export function TareasPanel(_props: TareasPanelProps) {
     if (receta && canManageTareas) setForm({ tipo: 'editar-automatica', receta });
     else abrirAutomatica(id);
   };
+
+  // ---------- Llegada desde la campana o el aviso semanal: abrir esa tarea concreta ----------
+  const [resaltada, setResaltada] = useState<string | null>(null);
+  const destino = useDestinoTareas();
+  const volverALista = () => { setActiveTab('tareas'); setVista('lista'); };
+  const abrirTareaPuntual = async (id: string) => {
+    setDetalle(null);
+    let tarea: Tarea | null = tareas.find(t => t.id === id) ?? (resueltasServidor ?? []).find(t => t.id === id) ?? null;
+    if (!tarea && organization?.id) {
+      try {
+        tarea = await fetchTareaPorId(organization.id, id);
+      } catch {
+        volverALista();
+        feedback.error('No pudimos abrir la tarea. Buscala en la lista o reintentá.');
+        return;
+      }
+    }
+    if (!tarea) {
+      // Igual si la eliminaron o si ya no es visible para este usuario: no se revela nada de ella.
+      volverALista();
+      feedback.info('Esa tarea ya no está disponible.', { description: 'Puede que la hayan eliminado o que ya no tengas acceso.' });
+      return;
+    }
+    if (tarea.tipo === 'peticion') { setActiveTab('peticiones'); setResaltada(tarea.id); return; }
+    volverALista();
+    setDetalle({ kind: 'tarea', tarea, vencida: esVencida(tarea, diasVencimiento, today) });
+    setResaltada(tarea.id);
+  };
+  // Programada (R1): si la ocurrencia ya existe como tarea, se abre la real; nunca ambas.
+  const abrirPrevista = (recurrenciaId: string, fecha: string) => {
+    const real = [...tareas, ...(resueltasServidor ?? [])].find(t => t.recurrencia_id === recurrenciaId && fechaDeTarea(t) === fecha);
+    if (real) { void abrirTareaPuntual(real.id); return; }
+    volverALista();
+    const prevista = (previstasServidor ?? []).find(p => p.recurrencia_id === recurrenciaId && p.fecha === fecha);
+    if (prevista) setDetalle({ kind: 'prevista', prevista });
+    else feedback.info('Esa tarea ya no está programada.', { description: 'Puede que la Tarea automática se haya pausado o cambiado.' });
+  };
+  useEffect(() => {
+    if (!destino || !organization?.id) return;
+    // Una Programada se busca en la semana ya leída: se espera esa lectura (si falla, queda la lista).
+    if (destino.tipo === 'prevista' && !semanaLista && !errorSemana) return;
+    const pedido = consumirDestinoTareas();
+    if (!pedido) return;
+    setForm(null); setEliminar(null);
+    if (pedido.tipo === 'tarea') void abrirTareaPuntual(pedido.id);
+    else if (pedido.tipo === 'prevista' && semanaLista) abrirPrevista(pedido.recurrenciaId, pedido.fecha);
+    else if (pedido.tipo === 'automatica' && canViewRecurrentes) abrirAutomatica(pedido.id);
+    else volverALista();
+  }, [destino, organization?.id, semanaLista, errorSemana]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Orientación breve sobre la fila (si está en la vista actual); sin movimiento si así lo pide el sistema.
+  useEffect(() => {
+    if (!resaltada) return;
+    const reducir = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    document.getElementById(`tarea-${resaltada}`)?.scrollIntoView({ block: 'center', behavior: reducir ? 'auto' : 'smooth' });
+    const t = window.setTimeout(() => setResaltada(null), 2600);
+    return () => window.clearTimeout(t);
+  }, [resaltada, hasData]);
 
   // ---------- Construcción de filas ----------
   const metaComun = (scope: string, asignadoId: string | null, nombre: string | null, sucursalId: string | null): ReactNode[] => {
@@ -238,13 +264,13 @@ export function TareasPanel(_props: TareasPanelProps) {
     if (seccion === 'sinFecha') meta.push(<span key="creada">Creada el {formatTimestampInTimezone(t.created_at, timezone, false)}</span>);
     meta.push(...metaComun(t.assignment_scope, t.asignado_a_id, t.asignado_a_nombre, t.sucursal_id));
     const abrir = () => setDetalle({ kind: 'tarea', tarea: t, vencida: item.vencida });
-    const actua = puedeActuar(t) && !!t.accion_version;
+    const actua = puedeOperarTarea(t, operador);
     return (
       <TareaFila key={t.id} titulo={t.titulo} descripcion={t.descripcion} estado={estado} meta={meta} automatica={!!t.recurrencia_id}
         onAbrir={abrir}
         onCompletar={actua ? () => solicitar({ id: t.id, version: t.accion_version!, accion: 'completar' }, t) : undefined}
         onIniciar={actua && !enProgreso ? () => solicitar({ id: t.id, version: t.accion_version!, accion: 'iniciar' }, t) : undefined}
-        enCurso={enCurso(t.id)} bloqueada={acciones.isPending} menu={menuTarea(t, abrir)} />
+        enCurso={enCurso(t.id)} bloqueada={accionPendiente} menu={menuTarea(t, abrir)} domId={t.id} resaltada={resaltada === t.id} />
     );
   };
   const fila = (item: ItemAgenda, seccion: 'hoy' | 'proximas') =>
@@ -260,7 +286,7 @@ export function TareasPanel(_props: TareasPanelProps) {
   const filaCompletada = (t: Tarea) => {
     const abrir = () => setDetalle({ kind: 'tarea', tarea: t, vencida: false });
     return <TareaFila key={t.id} titulo={t.titulo} descripcion={t.descripcion} estado="completada" automatica={!!t.recurrencia_id}
-      meta={metaCompletada(t)} onAbrir={abrir} menu={menuTarea(t, abrir)} />;
+      meta={metaCompletada(t)} onAbrir={abrir} menu={menuTarea(t, abrir)} domId={t.id} resaltada={resaltada === t.id} />;
   };
 
   // ---------- Peticiones ----------
@@ -310,7 +336,7 @@ export function TareasPanel(_props: TareasPanelProps) {
   })();
   const tareaDetalle = detalleVigente?.kind === 'tarea' ? detalleVigente.tarea : null;
   const detalleAbierta = !!tareaDetalle && tareaDetalle.tipo === 'tarea' && ['pendiente', 'en_progreso', 'vencida'].includes(tareaDetalle.estado);
-  const detalleActua = !!tareaDetalle && detalleAbierta && puedeActuar(tareaDetalle) && !!tareaDetalle.accion_version;
+  const detalleActua = !!tareaDetalle && detalleAbierta && puedeOperarTarea(tareaDetalle, operador);
   const recurrenciaDetalle = tareaDetalle?.recurrencia_id ?? (detalleVigente?.kind === 'prevista' ? detalleVigente.prevista.recurrencia_id : null);
 
   const ultimaOcurrencia = (recurrenciaId: string): UltimaOcurrencia | null => {
@@ -522,13 +548,13 @@ export function TareasPanel(_props: TareasPanelProps) {
           <PeticionesLista peticiones={peticiones} hasData={hasData} error={error} onReintentar={() => void refetch()} timezone={timezone}
             diasDefault={diasPeticion} sucursales={multiSucursal ? sucursales.map(s => ({ id: s.id, nombre: s.nombre })) : null}
             sucursalNombre={id => (multiSucursal ? sucursalNombre(id) : null)} puedeEliminar={canManageConfig}
-            onResolver={resolverPeticion} onEliminar={setEliminar} resolviendo={resolviendoPeticion} />
+            onResolver={resolverPeticion} onEliminar={setEliminar} resolviendo={resolviendoPeticion} resaltadaId={resaltada} />
         </TabsContent>
       </Tabs>
 
       <TareaDetalleDrawer detalle={detalleVigente} onClose={() => setDetalle(null)} sucursalNombre={sucursalNombre} timezone={timezone}
         diasVencimiento={diasVencimiento} automaticaTitulo={automaticaTitulo(recurrenciaDetalle)}
-        enCurso={tareaDetalle ? enCurso(tareaDetalle.id) : null} bloqueada={acciones.isPending}
+        enCurso={tareaDetalle ? enCurso(tareaDetalle.id) : null} bloqueada={accionPendiente}
         onCompletar={detalleActua ? () => solicitar({ id: tareaDetalle!.id, version: tareaDetalle!.accion_version!, accion: 'completar' }, tareaDetalle!) : undefined}
         onIniciar={detalleActua && tareaDetalle!.estado !== 'en_progreso' ? () => solicitar({ id: tareaDetalle!.id, version: tareaDetalle!.accion_version!, accion: 'iniciar' }, tareaDetalle!) : undefined}
         onEditar={canManageTareas && tareaDetalle && detalleAbierta ? () => { setForm({ tipo: 'editar-tarea', tarea: tareaDetalle }); setDetalle(null); } : undefined}
@@ -547,10 +573,7 @@ export function TareasPanel(_props: TareasPanelProps) {
       <TareaEliminarDialog onCancelar={() => setEliminar(null)} onConfirmar={confirmarEliminar}
         objetivo={eliminar ? { titulo: eliminar.titulo, tipo: eliminar.tipo, automatica: !!eliminar.recurrencia_id, automaticaTitulo: automaticaTitulo(eliminar.recurrencia_id) } : null} />
 
-      {pinAction && (
-        <TareaActionPinDialog key={`${pinAction.id}:${pinAction.accion}`} pending={acciones.isPending}
-          onClose={() => setPinAction(null)} onSubmit={pin => ejecutar(pinAction, pinAction.tarea, pin)} />
-      )}
+      {pinDialog}
     </div>
   );
 }

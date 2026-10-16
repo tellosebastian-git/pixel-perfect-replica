@@ -96,6 +96,17 @@ de `DESIGN.md`. Este archivo es el checklist operativo; la regla vive en
 | D56 | Pendiente | P2 | `--status-warning-foreground` (hsl 38 92% 40%) sobre blanco da ≈3,3:1: no alcanza AA para texto chico. Se corrigió en lo que tocó 4B (texto en color de texto, ámbar solo en el ícono), pero el token se usa como color de texto en ~60 lugares de otros módulos | Revisar el token (oscurecerlo) o su uso como color de texto en un build de color/estado | Transversal → estados de advertencia | `src/index.css` y consumidores de `text-status-warning-foreground` |
 | D57 | Pendiente | P3 | En mobile, `PageHeader` reserva `pl-14` (lugar de la hamburguesa) y apila acciones que no entran en una fila: en Tareas, “Tareas automáticas” y “Nueva tarea” ocupan dos filas antes del contenido (la primera tarea queda ~600 px abajo a 375 px) | Evaluar un tratamiento compacto de acciones de `PageHeader` en Compact para todas las pantallas, no solo Tareas | Principal → Tareas (y demás pantallas con dos acciones) | `src/components/ui/PageHeader.tsx` |
 
+## BUILD 4C — Tareas (2026-10-15): derivaciones registradas, no resueltas
+
+D53 sigue vigente: las pruebas del aviso semanal esperan al coordinador en tramos cortos de `act` y, con el aviso abierto,
+usan consultas sincrónicas.
+
+| ID | Estado | Prioridad | Hallazgo y evidencia | Acción pendiente | Ubicación en la app | Archivo técnico |
+|---|---|---|---|---|---|---|
+| D58 | Pendiente | P3 | Los avisos al entrar (onboarding, resumen mensual, aviso semanal) se evalúan al cargar la app: una pestaña que queda abierta varios días (mostrador en desktop) no vuelve a mostrar el aviso del jueves o del sábado hasta recargar | Evaluar que volver a la app después de ≥ 3 h en segundo plano cuente como entrada nueva en el coordinador, sin romper “uno por entrada” | Avisos al entrar (cualquier pantalla) | `src/lib/avisosGlobales.ts`, `src/components/avisos/AvisosGlobales.tsx` |
+| D59 | Pendiente | P2 | Con un `Dialog`/`DrawerForm`/`AlertDialog` modal de Radix abierto, el body no recibe punteros: los toasts de Sonner (“Reintentar”, “Deshacer”) no se pueden tocar y tocarlos cuenta como clic afuera del overlay. 4C lo resolvió solo para el aviso semanal (`body[data-aviso-tareas]` + el aviso ignora esos clics) | Resolverlo en las primitivas: toaster con `pointer-events` propio y overlays que no se cierren por interacciones dentro del toaster | Transversal → feedback sobre overlays | `src/components/ui/sonner.tsx`, `src/components/ui/dialog.tsx`, `src/components/ui/drawer-form.tsx`, `src/index.css` |
+| D60 | Pendiente | P3 | Las preferencias de notificación son por usuario (`unique(user_id, event_type)`), no por organización: apagar “Resumen semanal de Tareas” (o cualquier otra) aplica en todas las organizaciones del usuario | Decidir si las preferencias deben ser por organización (requiere migración, por Lovable) | Configuración → Notificaciones | `src/hooks/useNotificationPreferences.ts`, tabla `user_notification_preferences` |
+
 ## C7.8B — cerrado técnicamente (2026-09-28)
 
 No existe un ítem específico del backlog que corresponda cerrar por estos

@@ -4,6 +4,7 @@ import { ONBOARDING_STEPS, OnboardingStep, OnboardingSubTab, OnboardingEvent } f
 import { useOnboardingState } from '@/hooks/useOnboardingState';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWindowMode } from '@/hooks/use-window-mode';
+import type { EstadoAviso } from '@/lib/avisosGlobales';
 
 /** Tiempo máximo de espera a que el target de un paso aparezca en el DOM. */
 const TARGET_TIMEOUT_MS = 1500;
@@ -29,6 +30,8 @@ interface OnboardingContextValue {
   /** El tooltip informa si entra completo en el viewport; si no, se libera el scroll */
   setTooltipFits: (fits: boolean) => void;
   notifyEvent: (event: OnboardingEvent) => void;
+  /** Para el coordinador de avisos globales: el tour tiene prioridad sobre cualquier otro aviso al entrar. */
+  avisoGlobal: EstadoAviso;
 }
 
 
@@ -69,6 +72,13 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
 
   const isActive = !demo.active && currentIndex >= 0 && currentIndex < steps.length;
   const currentStep = isActive ? steps[currentIndex] : null;
+  // `pendiente` mientras no se sabe si el tour va a arrancar: el resto de los avisos espera.
+  const estadoGuardado = row?.status ?? 'pending';
+  const avisoGlobal: EstadoAviso = !canSeeOnboarding ? 'no'
+    : isActive ? 'listo'
+      : isLoading ? 'pendiente'
+        : estadoGuardado === 'completed' || estadoGuardado === 'skipped' ? 'no'
+          : 'pendiente';
 
   const next = useCallback(() => {
     setCurrentIndex(idx => {
@@ -321,7 +331,8 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     registerSubTabProbe,
     setTooltipFits,
     notifyEvent,
-  }), [isActive, currentStep, currentIndex, steps.length, targetRect, targetMissing, next, skip, restart, isAllowedTab, registerTabSetter, registerSubTabSetter, registerSectionOpener, registerSubTabProbe, notifyEvent]);
+    avisoGlobal,
+  }), [isActive, currentStep, currentIndex, steps.length, targetRect, targetMissing, next, skip, restart, isAllowedTab, registerTabSetter, registerSubTabSetter, registerSectionOpener, registerSubTabProbe, notifyEvent, avisoGlobal]);
 
 
   return <OnboardingContext.Provider value={value}>{children}</OnboardingContext.Provider>;

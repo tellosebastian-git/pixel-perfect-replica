@@ -67,13 +67,13 @@ la dejó obsoleta.
 - [x] `admin.md` — Centro de administración de plataforma, seguridad, métricas y precios
 - [x] `acceso-tenant.md` — Restauración de sesión, carga del contexto tenant y recuperación de fallos
 - [x] `turnos-agenda.md` — Configuración de reservas, Portal público, Horarios de trabajo
-- [x] `notificaciones.md` — Modelo evento/entrega, autorización, productores, permisos de funciones y cómo agregar eventos (Etapa 1 de seguridad, aplicada en Supabase el 2026-10-12; Etapa 2 suma `_notif_barbero_users` y el evento `tarea_automatica_pausada`)
+- [x] `notificaciones.md` — Modelo evento/entrega, autorización, productores, permisos de funciones y cómo agregar eventos (Etapa 1 de seguridad, aplicada en Supabase el 2026-10-12; Etapa 2 suma `_notif_barbero_users` y el evento `tarea_automatica_pausada`; BUILD 4C, local: campana → tarea puntual y preferencia “Resumen semanal de Tareas”, que no llega a la campana)
 - [ ] Cobrar
 - [x] Finanzas — `finanzas.md` (modo ficticio implementado, uso, límites y validación; no implica auditoría completa del módulo)
 - [ ] Mi Negocio (general)
 - [ ] Clientes
 - [ ] Estadísticas
-- [x] `tareas.md` — Tareas y Tareas automáticas: motor/cron e integridad de Etapas 2–3; BUILD 4A completo localmente (2026-10-14): datos, acciones seguras/PIN, permisos, concurrencia y deshacer; sin despliegue. 43 SQL, 12 mutaciones y 199 Vitest aprobadas; QA de publicación documentado. Ubicación: Principal → Tareas (`src/components/TareasPanel.tsx`), seguridad en `supabase/migrations/20261014120000_tareas_acciones_controladas.sql`.
+- [x] `tareas.md` — Tareas y Tareas automáticas: motor/cron e integridad de Etapas 2–3 (aplicadas); **Etapa 4 cerrada localmente (2026-10-15), sin despliegue**: BUILD 4A (datos, acciones seguras/PIN, permisos, concurrencia, deshacer, Programadas R1, historial), BUILD 4B (rework UX/UI: agenda semanal en lista) y BUILD 4C (aviso semanal al entrar, prioridad de avisos globales, campana → tarea puntual, preferencia). Rama local `feat/tareas-etapa-4` del checkout normal (4A + 4B commiteados; 4C sin commit, por pedido del usuario). 51 SQL de acciones, 21/21 mutaciones y 327 Vitest. Ubicación: Principal → Tareas (`src/components/TareasPanel.tsx`), aviso (`src/components/tareas/AvisoSemanalTareas.tsx`), migraciones `supabase/migrations/20261014120000_tareas_acciones_controladas.sql` y `…20261015120000_tareas_aviso_semanal.sql` (no aplicadas).
 
 Los módulos sin marcar no tienen documentación propia todavía — no auditados
 a fondo. No asumir que están al día con el canon de diseño solo porque no

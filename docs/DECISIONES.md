@@ -1,5 +1,42 @@
 # Decisiones de arquitectura y criterio — Vittro
 
+## 2026-10-15 — BUILD 4C: aviso semanal al entrar, un aviso por entrada y navegación a la tarea
+
+- **Repositorio normal sin reescribir historia.** 4A + 4B se commitearon en el worktree de `.codex` y se integraron en
+  la rama local `feat/tareas-etapa-4` del checkout normal; `origin/main` (8 commits de aliados) entró con merge, no
+  rebase. Los dos conflictos (`supabase/config.toml`, `docs/ESTADO_ACTUAL.md`) se resolvieron conservando ambos lados.
+  La ruta del brief (`…\projects\…`) no existe; la real es `…\proyectos\…`.
+- **Persistencia mínima, sin SECURITY DEFINER.** El brief pidió estado por usuario + organización + semana + momento,
+  no solo `localStorage`, con la migración mínima y RLS estricta (§15, §41). AGENTS.md encauza DB/RLS por Lovable: esta
+  tabla es una excepción acotada que autorizó el brief. `tareas_aviso_semanal` guarda solo estado y plazo (ninguna copia
+  de tareas); RLS por `auth.uid()` + organización del perfil; la cuenta de sucursal no guarda; sin DELETE. El plazo de
+  “Más tarde” lo fija un trigger INVOKER con el reloj del servidor (el del dispositivo no es confiable). No hizo falta
+  DEFINER ni cron: el aviso se evalúa al entrar. No se aplicó en producción.
+- **“Al entrar” = esta carga de la app.** La elección vive fuera de React por usuario + organización, para que un
+  remontaje no repita un aviso. Una pestaña abierta durante días no lo reevalúa hasta recargar (D58).
+- **Un aviso por entrada, sin encadenar y sin interrumpir.** Onboarding > resumen mensual > Tareas. Además de esperar a
+  que no haya ventanas, menús, campos con foco ni acciones guardándose, si la persona ya tocó o escribió en el contenido
+  principal antes de que el aviso estuviera listo, queda para la próxima entrada: es preferible perder una aparición a
+  abrirlo en medio de un cobro o un formulario, y no hay otra señal fiable de “flujo en curso” sin tocar cada módulo.
+- **Lunes y jueves solo si queda algo.** Con la semana ya resuelta, “Arranca la semana” no tiene nada que decir; el
+  sábado sí cierra aunque esté al 100 %. La lista se limita a la semana. Las Programadas suman en X/Y, así que también se
+  listan el sábado (si no, el número y la lista no coincidirían).
+- **Ir a Tareas desde el aviso cuenta como “Más tarde”.** Tocar una tarea o “Ver todas las tareas” no resuelve el
+  momento: solo “Listo” lo hace. Un cierre (X, Escape, clic afuera) o una navegación nunca se castiga como Listo.
+- **Una sola definición de la semana.** Panel y aviso usan `useAgendaSemanal` (agenda, progreso, Programadas y
+  completadas locales), la misma regla de permisos (`puedeOperarTarea`) y las mismas acciones (`useAccionesTarea`):
+  no hay un segundo cálculo de X/Y ni una segunda lógica de estado.
+- **Concurrencia con el dato del servidor.** Si completar falla por `conflict`/`invalid_state` y la tarea ya está
+  completada, se lee quién la completó (con RLS) y se muestra “Ya la completó X.”; nada se sobrescribe.
+- **Navegación sin router.** Un pedido de destino en memoria (`irATareas`) que `Index` convierte en cambio de pestaña
+  y `TareasPanel` consume una vez. La tarea se busca con la sesión del usuario; si no existe o no es visible, el mensaje
+  es el mismo (no revela si se borró o si es ajena).
+- **Toasts tocables con el aviso abierto.** Con un Dialog modal de Radix el body no recibe punteros y tocar un toast
+  cuenta como clic afuera. Solo mientras el aviso está abierto, el toaster recibe punteros y el aviso ignora esos clics,
+  para que “Deshacer” funcione. El caso general queda en D59.
+- **Preferencia en el sistema existente.** `user_notification_preferences` no restringe `event_type`: alcanzó un ítem de
+  catálogo con `inBell: false`. Es por usuario, no por organización (D60).
+
 ## Aliados: niveles solo por referidos — 2026-10-14
 
 El usuario retiró la vía de seguidores y pidió una misma propuesta de ingresos

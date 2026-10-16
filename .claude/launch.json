@@ -9,6 +9,16 @@
         "dev"
       ],
       "port": 5173
+    },
+    {
+      "name": "qa-tareas",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "--config",
+        "qa/vite.tareas.config.ts"
+      ],
+      "port": 8091
     }
   ]
 }

@@ -68,6 +68,8 @@ export interface NotificationEventDef {
   supportsMode?: boolean;
   /** Modo default cuando supportsMode=true y no hay preferencia. */
   defaultMode?: Exclude<PrefMode, 'disabled'>;
+  /** `false`: no llega a la campana (p. ej. el resumen semanal de Tareas, que aparece al entrar). Default: sí. */
+  inBell?: boolean;
 }
 
 /**
@@ -305,6 +307,24 @@ export const NOTIFICATION_CATALOG: NotificationEventDef[] = [
     sensitive: false,
     requiresDetails: true,
     sourceModule: 'tareas',
+  },
+  {
+    // Aviso al entrar a la app (BUILD 4C), no una notificación: nunca se entrega a la campana.
+    eventType: 'tareas_resumen_semanal',
+    category: 'actividad_operativa',
+    label: 'Resumen semanal de Tareas',
+    description: 'Al entrar a Vittro al empezar la semana, el jueves y el sábado: cómo vienen tus tareas. No llega a la campana.',
+    defaultEnabled: true,
+    configurable: true,
+    implemented: true,
+    phase: 4,
+    rolesAllowed: ['owner', 'general_manager', 'manager', 'barber'],
+    showForSucursalAccount: false,
+    showForBarber: true,
+    sensitive: false,
+    requiresDetails: false,
+    sourceModule: 'tareas',
+    inBell: false,
   },
   {
     eventType: 'cliente_bloqueado',

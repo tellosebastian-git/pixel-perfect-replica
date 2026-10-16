@@ -530,7 +530,7 @@ pasadas; ancla quincenal, días personalizados y pausadas; alcance por rol/sucur
 
 ## BUILD 4B — rework UX/UI de Tareas (local, 2026-10-14)
 
-Sin commit, sin push, sin despliegue. Implementado sobre el estado completo de 4A. 4C no iniciado.
+Sin commit, sin push, sin despliegue. Implementado sobre el estado completo de 4A. (Estado al cierre de 4B: después se commiteó e integró en el checkout normal; ver BUILD 4C.)
 
 ### Experiencia
 
@@ -644,3 +644,91 @@ Sin commit, sin push, sin despliegue. Implementado sobre el estado completo de 4
 5. **Historial**, `src/components/tareas/TareasHistorial.tsx`: orden por fecha de completado con muchas completadas
    y “Cargar más”.
 6. **Tablet real** (mostrador) y touch: áreas táctiles, drawer de filtros y selectores.
+
+## BUILD 4C — avisos semanales, integración global y cierre de Etapa 4 (local, 2026-10-15)
+
+Último build de la Etapa 4. Sin push, sin despliegue, sin migraciones aplicadas en producción. Por pedido del usuario,
+4C no se commiteó: queda en el working tree de `feat/tareas-etapa-4`, sobre los commits de 4A + 4B.
+
+### Repositorio
+
+- 4A + 4B se commitearon en el worktree `…\.codex\…\vittro-build-4a-1` (rama `codex/tareas-4a-1`, commit `64b63b7c`) y se
+  integraron en la rama local `feat/tareas-etapa-4` del checkout normal `C:\Users\Sebastian Tello\proyectos\pixel-perfect-replica`
+  (la ruta `…\projects\…` no existe). Merge de `origin/main` (`4c77935c`): conflictos solo en `supabase/config.toml`
+  (`[functions.tareas-action]` + plantilla de correo de aliados) y `docs/ESTADO_ACTUAL.md`, resueltos conservando ambos lados.
+- `npm run dev` en esa carpeta muestra 4A + 4B + 4C. Su `.env` apunta al proyecto Supabase de producción, que no tiene las
+  migraciones de 4A/4C: la UI nueva se ve y lo nuevo del servidor falla de forma segura hasta aplicar las migraciones en un
+  ambiente de prueba. Sin backend: `qa/tareas.html` (`.claude/launch.json` → `qa-tareas`, puerto 8091).
+
+### Aviso semanal
+
+| Ubicación en la app | Archivo técnico | Comportamiento |
+|---|---|---|
+| Cualquier pantalla al entrar a Vittro | `src/components/tareas/AvisoSemanalTareas.tsx` | Diálogo `.resumen-sheet` (sheet inferior en mobile, centrado desde 640 px), encabezado y pie fijos, cuerpo con scroll. Lunes–miércoles **Arranca la semana** (previstas · para hoy · pendientes anteriores); jueves–viernes **Cómo viene la semana** y sábado–domingo **Cierre de la semana**, ambos con `TareasProgresoSemanal`; al 100 % con actividad, “Todo al día esta semana.” sin gamificación. Hasta 5 tareas con `TareaFila` y “Y N más esta semana en Tareas.”. Pie: Más tarde · Ver todas las tareas · Listo. |
+| (lógica) | `src/lib/tareasAvisoSemanal.ts` | Momento por el día de la organización (`momentoDelDia`), pendiente según el estado guardado (`avisoPendiente`) y contenido (`construirAviso`) sobre la agenda y el progreso de 4B: lunes/jueves solo si queda algo de la semana (abiertas, Programadas) o algo que necesita atención; sábado si hubo actividad; la lista se limita a la semana (lo posterior vive en Tareas). |
+| (datos) | `src/hooks/useAvisoSemanalTareas.ts` | Personas (barbero o supervisor) con Tareas en el plan y la preferencia activa; nunca la cuenta de sucursal. Lee el estado del aviso y **solo si está pendiente** las mismas lecturas acotadas de Principal → Tareas (abiertas, completadas de la semana, Programadas R1): sin historial, sin N+1. Alcance igual al módulo: barbero lo suyo (RLS 4A); supervisor su última elección Mis tareas/Negocio, con Negocio si ya no es válida. Cualquier error lo apaga en silencio (nunca “todo al día”). |
+| Principal → Tareas y aviso | `src/hooks/useAgendaSemanal.ts` | Una sola definición de abierta, prevista, completada, Programada y pendiente anterior para el panel y el aviso (incluida la completada en el momento hasta que el servidor la confirma). |
+| Acciones dentro del aviso | `src/hooks/useAccionesTarea.tsx`, `src/hooks/useTareaAcciones.ts` | Iniciar / Completar / Deshacer con las acciones de 4A, la misma regla de permisos (`puedeOperarTarea`, `src/lib/tareasAgenda.ts`) y PIN para la cuenta de sucursal. Si otra persona ya la completó, la respuesta segura de 4A (`conflict`/`invalid_state`, `TareaAccionError`) muestra “Ya la completó X.” sin sobrescribir nada. Programadas sin acciones. Con el aviso abierto, el “Deshacer” del toast sigue tocable (`body[data-aviso-tareas]` en `src/index.css`) y tocarlo no lo cierra. |
+| Persistencia | `supabase/migrations/20261015120000_tareas_aviso_semanal.sql` | `tareas_aviso_semanal (user_id, organization_id, semana, momento, estado, pospuesto_hasta, updated_at)`: lunes de la semana, momento `lunes/jueves/sabado`, estado `listo/pospuesto`; ninguna copia de tareas. RLS: leer/crear/actualizar solo la propia fila en la organización del perfil; la cuenta de sucursal no puede guardar; sin DELETE ni acceso anon. Trigger INVOKER: “Más tarde” = reloj del servidor + 3 h (el valor del cliente se ignora). Sin SECURITY DEFINER ni cron. |
+| Listo / Más tarde | mismo componente | “Listo” resuelve ese momento; “Más tarde”, la X, Escape, el clic afuera e ir a Tareas (una tarea o “Ver todas”) lo posponen: vuelve en una entrada posterior después del plazo. El contenido se calcula al abrir, nunca se congela. |
+
+### Avisos al entrar (prioridad global)
+
+| Ubicación en la app | Archivo técnico | Comportamiento |
+|---|---|---|
+| Al entrar a la app | `src/lib/avisosGlobales.ts`, `src/components/avisos/AvisosGlobales.tsx`, `src/pages/Index.tsx` | Onboarding > resumen mensual > Tareas. Uno solo por entrada (usuario + organización): el elegido queda fijo y no se encadena el siguiente. Nunca encima de un Dialog/Drawer/PIN/menú/selector, con un campo en edición o una mutación en curso; si la persona ya tocó o escribió en `<main>`, queda para la próxima entrada. |
+| Onboarding | `src/components/onboarding/OnboardingProvider.tsx` | Informa `avisoGlobal` (pendiente mientras se sabe si arranca). Al terminar o saltear el tour, libera el lugar sin dar paso a otro aviso en esa entrada. |
+| Resumen mensual | `src/components/resumenMensual/ResumenMensualStory.tsx` | Pasa por el coordinador; ya no se abre después del onboarding en la misma entrada. |
+
+### Preferencia
+
+Configuración → Notificaciones → **Resumen semanal de Tareas** (`src/lib/notifications/catalog.ts`, evento
+`tareas_resumen_semanal`, sistema existente `user_notification_preferences`, sin migración). Apaga solo este aviso.
+`inBell: false`: no se entrega a la campana ni figura en sus filtros. Visible para owner/GM/manager/barbero, no para la
+cuenta de sucursal. La preferencia es por usuario (la tabla existente es única por usuario + evento): vale para todas sus
+organizaciones (ver `DESIGN_BACKLOG.md`).
+
+### Abrir una tarea puntual (campana y aviso)
+
+| Ubicación en la app | Archivo técnico | Comportamiento |
+|---|---|---|
+| Campana → notificación de Tareas | `src/components/notifications/NotificationsBell.tsx`, `src/components/AppSidebar.tsx`, `src/hooks/useNotifications.ts` | Entrega la notificación tocada (con `source_table`); `tareas` abre esa tarea o petición, `tareas_recurrentes` su Tarea automática. Filtros de la campana con nombre accesible; botón colapsado con “Notificaciones, N sin leer”. |
+| Navegación interna | `src/lib/tareasNavegacion.ts`, `src/pages/Index.tsx` | Pedido de destino (`irATareas`) sin router nuevo: `Index` cambia a Tareas (respeta onboarding y plan) y `TareasPanel` lo consume una vez. |
+| Principal → Tareas | `src/components/TareasPanel.tsx`, `src/lib/tareasData.ts` (`fetchTareaPorId`) | Busca la tarea en lo cargado o con la sesión del usuario (RLS) y abre su detalle; una petición lleva a Peticiones. Resaltado breve de la fila (`TareaFila` → `domId`/`resaltada`, `PeticionesLista` → `resaltadaId`), sin movimiento con `prefers-reduced-motion`. Programada: abre su ocurrencia o, si ya existe, la tarea real. Eliminada o sin acceso: “Esa tarea ya no está disponible.” sin revelar datos; fallo de lectura: mensaje humano y la lista. |
+
+### Pruebas
+
+- `src/lib/tareasAvisoSemanal.test.ts` (11): ventanas, cambio domingo → lunes y zona distinta del dispositivo, Listo,
+  Más tarde y plazo, lunes/jueves/sábado, 100 %, máximo 5, fuera de la semana, Programadas, completada tarde.
+- `src/components/avisos/AvisosGlobales.test.tsx` (10): prioridad onboarding/resumen, un solo aviso, sin encadenar,
+  superficie ocupada, persona trabajando, otra organización = otra entrada.
+- `src/components/tareas/AvisoSemanalTareas.test.tsx` (18): momentos, Listo/Más tarde/Escape, persistencia por usuario +
+  organización, plazo vigente o vencido, preferencia apagada, cuenta de sucursal, resumen con prioridad, barbero y
+  supervisor (Mis tareas válido o no), completar, “Ya la completó Juan.”, Programadas sin acciones, navegación.
+- `src/components/tareas/TareasReliability.test.tsx` (+6): abrir la tarea puntual con resaltado, fuera de la lista
+  (RLS), eliminada/sin acceso, fallo de lectura, Programada → ocurrencia o real, petición.
+- `src/components/notifications/NotificationsBell.test.tsx` (3): la campana abre la tarea correcta, mapeo de destinos,
+  el aviso semanal no figura en la campana.
+- `supabase/tests/tareas-acciones-sql.mjs` (+4 = **51**): plazo del servidor, upsert como el de PostgREST, aislamiento
+  por usuario/organización, cuenta de sucursal, sin DELETE/anon, CHECK de lunes y momento, columnas sin contenido,
+  trigger no DEFINER; +4 mutaciones del aviso.
+
+Resultados: Vitest **327/40** (base integrada 279/36), SQL 51 + 82 + 44 + 18 + 27, build OK, `tsc` raíz exit 0 y
+`-p tsconfig.app.json` con los 5 errores previos (`abortSignal`, `readRetry.test`), lint de lo tocado sin errores.
+
+### QA con el arnés (sin sesión ni APIs reales)
+
+`qa/tareas.html?rol=owner|manager|barbero|cuenta&estado=normal|aldia|…&hoy=AAAA-MM-DD&aviso=listo|no&pref=off`.
+Revisado: lunes, jueves, sábado al 100 %, domingo (usa el cierre del sábado), barbero, a 375 / 430 / 768 vertical /
+1024 horizontal / 1280; completar y “Deshacer” desde el toast con el aviso abierto; tocar una tarea abre su detalle
+con la fila resaltada; foco inicial en “Cerrar y recordar más tarde”. Corregidos en la pasada: alineación de los
+números del inicio de semana y el encabezado “Tareas · Tareas · …”. El arnés no aplica RLS: el recorte por persona del
+barbero se valida en las pruebas SQL y queda para el QA autenticado.
+
+### Pendiente (QA autenticado en un ambiente de prueba con las migraciones de 4A y 4C)
+
+1. Aviso con Owner, GM, Manager (una y varias sucursales) y Barbero; cuenta de sucursal sin aviso.
+2. Listo y Más tarde entre dos dispositivos (mismo usuario) y en dos organizaciones.
+3. Campana → tarea puntual con una notificación real; tarea eliminada y sin acceso.
+4. Prioridad con un onboarding pendiente y con un resumen mensual pendiente.
+5. Tablet real (táctil).

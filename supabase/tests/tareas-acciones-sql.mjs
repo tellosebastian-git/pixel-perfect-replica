@@ -12,6 +12,8 @@ const { default: EmbeddedPostgres } = await import(dep('embedded-postgres/dist/i
 process.env.TAREAS_FIXTURE_ONLY = '1';
 const { build, seedWorld, W, asOwner } = await import('./tareas-automaticas-sql.mjs');
 let migration = await readFile('supabase/migrations/20261014120000_tareas_acciones_controladas.sql','utf8');
+// BUILD 4C: estado del aviso semanal. Las mutaciones marcadas 'aviso' se aplican sobre esta migración.
+let aviso = await readFile('supabase/migrations/20261015120000_tareas_aviso_semanal.sql','utf8');
 const mutations = [
   ['sin filtro de organización en autorización', 'p.id = p_actor AND p.organization_id = p_org', 'p.id = p_actor'],
   ['sin bloqueo de fila', "AND tipo = 'tarea' FOR UPDATE", "AND tipo = 'tarea'"],
@@ -30,6 +32,10 @@ const mutations = [
   ['proyección incluye pausadas', 'tr.activo AND tr.pausa_motivo IS NULL', 'true'],
   ['proyección reconstruye fechas pasadas', 'GREATEST(p_desde, v_hoy, r.proxima_fecha) - 1', 'p_desde - 1'],
   ['proyección sin límite de rango', ' OR p_hasta - p_desde > 13', ''],
+  ['aviso: lectura sin filtro de usuario', 'FOR SELECT TO authenticated\n  USING (user_id = auth.uid() AND', 'FOR SELECT TO authenticated\n  USING (', 'aviso'],
+  ['aviso: alta sin filtro de organización', 'WITH CHECK (user_id = auth.uid() AND organization_id = public.get_user_organization_id(auth.uid())\n    AND NOT public.is_sucursal_account(auth.uid()));\nCREATE POLICY tareas_aviso_semanal_actualizar', 'WITH CHECK (user_id = auth.uid()\n    AND NOT public.is_sucursal_account(auth.uid()));\nCREATE POLICY tareas_aviso_semanal_actualizar', 'aviso'],
+  ['aviso: cuenta de sucursal puede guardar estado', 'AND NOT public.is_sucursal_account(auth.uid()));\nCREATE POLICY tareas_aviso_semanal_actualizar', ');\nCREATE POLICY tareas_aviso_semanal_actualizar', 'aviso'],
+  ['aviso: "Más tarde" con el reloj del dispositivo', "NEW.pospuesto_hasta := CASE WHEN NEW.estado = 'pospuesto' THEN clock_timestamp() + interval '3 hours' END;", "NEW.pospuesto_hasta := CASE WHEN NEW.estado = 'pospuesto' THEN coalesce(NEW.pospuesto_hasta, clock_timestamp() + interval '3 hours') END;", 'aviso'],
 ];
 if(process.argv.includes('--mutation-check')) {
   let survived=0;
@@ -43,7 +49,9 @@ if(process.argv.includes('--mutation-check')) {
   console.log(`Mutaciones 4A detectadas: ${mutations.length-survived}/${mutations.length}`); process.exit(survived?1:0);
 }
 if(process.env.TAREAS_ACTION_MUTATION!==undefined) {
-  const [,from,to]=mutations[Number(process.env.TAREAS_ACTION_MUTATION)];assert.ok(migration.includes(from));migration=migration.replace(from,to);
+  const [,from,to,objetivo]=mutations[Number(process.env.TAREAS_ACTION_MUTATION)];
+  if(objetivo==='aviso') { assert.ok(aviso.includes(from)); aviso=aviso.replace(from,to); }
+  else { assert.ok(migration.includes(from)); migration=migration.replace(from,to); }
 }
 const databaseDir = await mkdtemp(resolve(tmpdir(),'vittro-4a-'));
 const pg = new EmbeddedPostgres({ databaseDir, user: 'postgres', password: randomUUID(), port: 55439,
@@ -96,7 +104,7 @@ try {
   await c.query("UPDATE public.barberos SET pin_hash = 'valid-hash' WHERE id = $1",[W.bar1]);
   await asOwner(adapter(c),await readFile('supabase/migrations/20261013120000_tareas_integridad_post_reset.sql','utf8'));
   // Migration uses explicit BEGIN/COMMIT, so set owner at session level.
-  await c.query('SET ROLE app_owner'); await c.query(migration); await c.query('RESET ROLE');
+  await c.query('SET ROLE app_owner'); await c.query(migration); await c.query(aviso); await c.query('RESET ROLE');
 
   for (const user of ['ownerA','gmA','mgrS1','barberS1']) {
     await test(`${user}: iniciar propia, completar y deshacer conserva en_progreso`,async()=>{
@@ -314,6 +322,65 @@ try {
     }
     assert.equal((await c.query("SELECT has_function_privilege('authenticated','public._tareas_auto_siguiente(date,text,text,integer,integer[],date)','EXECUTE') AS ok")).rows[0].ok,false);
   });
+  // BUILD 4C: estado del aviso semanal (usuario + organización + semana + momento), sin contenido de tareas.
+  const lunesA = async () => { await admin(); return (await c.query("SELECT public._tareas_auto_lunes(public._tareas_auto_hoy($1))::text AS d",[W.orgA])).rows[0].d; };
+  const guardarAviso = async (user, fila) => {
+    await session(user);
+    return (await c.query(`INSERT INTO public.tareas_aviso_semanal(organization_id,semana,momento,estado,pospuesto_hasta)
+      VALUES($1,$2,$3,$4,$5) ON CONFLICT (user_id,organization_id,semana,momento) DO UPDATE SET estado=EXCLUDED.estado,pospuesto_hasta=EXCLUDED.pospuesto_hasta
+      RETURNING estado,pospuesto_hasta,user_id`,[fila.org ?? W.orgA,fila.semana,fila.momento ?? 'lunes',fila.estado,fila.hasta ?? null])).rows[0];
+  };
+  await test('Aviso semanal: "Más tarde" lo fija el servidor (3 h) y "Listo" no deja plazo',async()=>{
+    const semana=await lunesA();
+    const pospuesto=await guardarAviso('ownerA',{semana,estado:'pospuesto',hasta:'2000-01-01T00:00:00Z'});
+    assert.equal(pospuesto.user_id,W.ownerA);
+    const horas=(new Date(pospuesto.pospuesto_hasta).getTime()-Date.now())/3_600_000;
+    assert.ok(horas>2.9 && horas<3.1,`plazo de 3 h según el servidor, no el enviado (${horas})`);
+    const listo=await guardarAviso('ownerA',{semana,estado:'listo'});
+    assert.equal(listo.estado,'listo'); assert.equal(listo.pospuesto_hasta,null);
+  });
+  await test('Aviso semanal: el upsert del cliente (como lo arma PostgREST) pasa de Listo a Más tarde y vuelve',async()=>{
+    const semana=await lunesA(); await session('gmA');
+    // Mismo SQL que `upsert(..., { onConflict })`: todas las columnas enviadas, sin pospuesto_hasta.
+    const upsert=async estado=>(await c.query(`INSERT INTO public.tareas_aviso_semanal(user_id,organization_id,semana,momento,estado)
+      VALUES($1,$2,$3,'sabado',$4) ON CONFLICT (user_id,organization_id,semana,momento)
+      DO UPDATE SET user_id=EXCLUDED.user_id,organization_id=EXCLUDED.organization_id,semana=EXCLUDED.semana,momento=EXCLUDED.momento,estado=EXCLUDED.estado
+      RETURNING estado,pospuesto_hasta`,[W.gmA,W.orgA,semana,estado])).rows[0];
+    assert.equal((await upsert('listo')).pospuesto_hasta,null);
+    const pospuesto=await upsert('pospuesto');
+    assert.equal(pospuesto.estado,'pospuesto');
+    assert.ok(new Date(pospuesto.pospuesto_hasta).getTime()-Date.now()>2.9*3_600_000,'el plazo lo pone el servidor también al actualizar');
+    assert.equal((await upsert('listo')).pospuesto_hasta,null);
+    assert.equal((await c.query('SELECT 1 FROM public.tareas_aviso_semanal WHERE semana=$1 AND momento=$2',[semana,'sabado'])).rowCount,1);
+  });
+  await test('Aviso semanal: cada usuario solo ve y cambia su estado, en su organización',async()=>{
+    const semana=await lunesA(); await guardarAviso('ownerA',{semana,estado:'listo',momento:'jueves'});
+    await session('gmA');
+    assert.equal((await c.query('SELECT 1 FROM public.tareas_aviso_semanal WHERE user_id=$1',[W.ownerA])).rowCount,0);
+    assert.equal((await c.query("UPDATE public.tareas_aviso_semanal SET estado='pospuesto' WHERE user_id=$1",[W.ownerA])).rowCount,0);
+    await reject("INSERT INTO public.tareas_aviso_semanal(user_id,organization_id,semana,momento,estado) VALUES($1,$2,$3,'jueves','listo')",[W.ownerA,W.orgA,semana],/row-level security/);
+    await session('ownerA');
+    await reject("INSERT INTO public.tareas_aviso_semanal(organization_id,semana,momento,estado) VALUES($1,$2,'jueves','listo')",[W.orgB,semana],/row-level security/);
+    await session('ownerB');
+    assert.equal((await c.query('SELECT 1 FROM public.tareas_aviso_semanal')).rowCount,0);
+  });
+  await test('Aviso semanal: cuenta de sucursal sin estado, anon sin acceso, sin borrar ni guardar contenido',async()=>{
+    const semana=await lunesA();
+    await session('saS1');
+    await reject("INSERT INTO public.tareas_aviso_semanal(organization_id,semana,momento,estado) VALUES($1,$2,'lunes','listo')",[W.orgA,semana],/row-level security/);
+    await guardarAviso('ownerA',{semana,estado:'listo'});
+    await reject('DELETE FROM public.tareas_aviso_semanal WHERE user_id=$1',[W.ownerA],/permission denied/);
+    await session('', 'anon');
+    await reject('SELECT 1 FROM public.tareas_aviso_semanal',[],/permission denied/);
+    await session('ownerA');
+    await reject("INSERT INTO public.tareas_aviso_semanal(organization_id,semana,momento,estado) VALUES($1,$2::date + 2,'lunes','listo')",[W.orgA,semana],/tareas_aviso_semanal_lunes/);
+    await reject("INSERT INTO public.tareas_aviso_semanal(organization_id,semana,momento,estado) VALUES($1,$2,'domingo','listo')",[W.orgA,semana],/tareas_aviso_semanal_momento/);
+    await admin();
+    const columnas=(await c.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='tareas_aviso_semanal' ORDER BY ordinal_position")).rows.map(r=>r.column_name);
+    assert.deepEqual(columnas,['user_id','organization_id','semana','momento','estado','pospuesto_hasta','updated_at']);
+    const fn=(await c.query("SELECT prosecdef, has_function_privilege('authenticated',oid,'EXECUTE') AS auth FROM pg_proc WHERE proname='tareas_aviso_semanal_preparar'")).rows[0];
+    assert.equal(fn.prosecdef,false); assert.equal(fn.auth,false);
+  });
   await test('Historial: índice parcial por organización y fecha de completado',async()=>{
     await admin(); const def=(await c.query("SELECT indexdef FROM pg_indexes WHERE schemaname='public' AND indexname='idx_tareas_historial_completadas'")).rows[0]?.indexdef ?? '';
     assert.match(def,/\(organization_id, completada_at DESC NULLS LAST, id DESC\)/); assert.match(def,/estado = 'completada'/); assert.match(def,/tipo = 'tarea'/);
@@ -338,7 +405,7 @@ try {
   assert.equal((await staleComplete).code,'conflict');
   assert.equal((await action('gmA',{id:changing.id,...started},'completar',c2)).estado,'completada');
   console.log(`ok ${++passed} - cambio concurrente de estado exige refrescar versión antes de completar`);
-  console.log(`BUILD 4A: ${passed} pruebas SQL aprobadas en PostgreSQL real local.`);
+  console.log(`Tareas 4A + 4C: ${passed} pruebas SQL aprobadas en PostgreSQL real local.`);
   if(process.argv.includes('--generate-types')) {
     const { regenerate } = await import('./tareas-generate-types.mjs'); await c.query('RESET ROLE'); await regenerate(c);
   }

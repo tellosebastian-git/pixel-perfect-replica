@@ -1,6 +1,6 @@
 # Estado actual — Vittro
 
-Última actualización: 2026-10-14
+Última actualización: 2026-10-15
 
 ## Programa de aliados — publicado y habilitado
 
@@ -191,6 +191,46 @@ Vitest **235/33** (base 4A 199/32), build OK, `tsc` raíz exit 0 y `-p tsconfig.
 lint global 378 errores / 49 advertencias (base 378/50), detector de Impeccable sin hallazgos.
 QA visual con datos sintéticos (`qa/tareas.html`, sin sesión real) a 375/768/1024/1280+; **QA autenticado
 pendiente**. 4C (avisos semanales) no iniciado. Detalle: `docs/MODULOS/tareas.md`.
+
+## Tareas — BUILD 4C: avisos semanales, integración global y cierre de Etapa 4, local (2026-10-15)
+
+**Etapa 4 cerrada localmente (4A + 4B + 4C), sin push, sin despliegue y sin migraciones aplicadas en producción.**
+Por pedido del usuario, **4C no se commiteó**: sus cambios quedan en el working tree de `feat/tareas-etapa-4`.
+El trabajo ya no vive en el worktree de `.codex`: 4A + 4B se commitearon en `codex/tareas-4a-1` (`64b63b7c`) y se
+integraron en la rama local `feat/tareas-etapa-4` del checkout normal (`C:UsersSebastian Telloproyectospixel-perfect-replica`;
+la ruta `…projects…` del brief no existe), con merge de `origin/main` (`4c77935c`, conflictos solo en
+`supabase/config.toml` y este archivo, resueltos conservando ambos lados). `npm run dev` desde esa carpeta muestra 4A + 4B + 4C,
+pero su `.env` apunta al proyecto Supabase de producción, que **no tiene** las migraciones de 4A/4C: la UI nueva carga y las
+lecturas/acciones nuevas (Programadas, acciones de servidor, estado del aviso) fallan de forma segura hasta aplicar las
+migraciones en un ambiente de prueba. Para revisar sin backend: `qa/tareas.html` (configuración `qa-tareas` de `.claude/launch.json`).
+
+- **Aviso semanal de Tareas** (`src/components/tareas/AvisoSemanalTareas.tsx`, `src/hooks/useAvisoSemanalTareas.ts`,
+  `src/lib/tareasAvisoSemanal.ts`): al entrar a Vittro, con el día de la organización. Lunes a miércoles “Arranca la semana”
+  (previstas, para hoy, pendientes anteriores; solo si queda algo), jueves y viernes “Cómo viene la semana” (X de Y con
+  `TareasProgresoSemanal`; solo si falta algo), sábado y domingo “Cierre de la semana” (aparece aunque esté al 100 % si hubo
+  actividad: “Todo al día esta semana.”). Hasta 5 tareas de la semana (atención → hoy → próximas) y “Y N más”. Misma agenda
+  que Principal → Tareas (`src/hooks/useAgendaSemanal.ts`). Barbero: versión personal; supervisores: última elección
+  Mis tareas/Negocio válida; la cuenta de sucursal no lo recibe. Iniciar/Completar con las acciones de 4A
+  (`src/hooks/useAccionesTarea.tsx`, “Ya la completó X.” si otra persona se adelantó); Programadas sin acciones.
+  “Listo” lo cierra para esa ventana; “Más tarde”, la X, Escape, el clic afuera o ir a Tareas lo posponen ≈ 3 h (plazo
+  fijado por el servidor).
+- **Estado del aviso** (`supabase/migrations/20261015120000_tareas_aviso_semanal.sql`): tabla `tareas_aviso_semanal` solo con
+  usuario, organización, semana, momento, estado y plazo (sin contenido de tareas); RLS por `auth.uid()` + organización del perfil,
+  sin DELETE, cuenta de sucursal excluida; trigger INVOKER que fija el plazo de “Más tarde”. **Sin SECURITY DEFINER nuevo, sin cron.**
+- **Avisos al entrar** (`src/components/avisos/AvisosGlobales.tsx`, `src/lib/avisosGlobales.ts`, `src/pages/Index.tsx`):
+  onboarding > resumen mensual > Tareas, uno solo por entrada y sin encadenar; nunca encima de otra ventana/drawer/PIN/menú,
+  con un campo en edición o una acción guardándose; si la persona ya empezó a trabajar, queda para la próxima entrada.
+- **Preferencia** “Resumen semanal de Tareas” en Configuración → Notificaciones (`src/lib/notifications/catalog.ts`, sistema
+  existente, sin migración); no figura en la campana (`inBell: false`).
+- **Campana → tarea puntual** (`src/components/notifications/NotificationsBell.tsx`, `src/components/AppSidebar.tsx`,
+  `src/lib/tareasNavegacion.ts`, `src/components/TareasPanel.tsx`): una notificación de Tareas abre esa tarea (o su Tarea
+  automática) con su detalle y un resaltado breve; si ya no existe o no es accesible, lo dice sin revelar datos.
+
+Validación: Vitest **327/40** (base integrada 279/36: 48 pruebas nuevas de 4C); SQL de acciones
+**51** (4 nuevas del aviso) y mutaciones del aviso detectadas; Etapas 2–3 **82**, Etapa 1 **44**, comercial **18**,
+aliados **27**; build OK; `tsc` raíz exit 0 y `-p tsconfig.app.json` con los mismos 5 errores previos; lint de lo tocado sin
+errores. QA con el arnés a 375/430/768/1024/1280. **QA autenticado pendiente** (ambiente de prueba con las migraciones).
+Detalle: `docs/MODULOS/tareas.md` (“BUILD 4C”).
 
 ## Finanzas — modo ficticio
 

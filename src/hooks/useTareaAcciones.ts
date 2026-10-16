@@ -10,6 +10,14 @@ interface ActionResult {
   iniciada_at?: string | null; completada_at?: string | null;
 }
 
+/** Rechazo de una acción por el servidor: conserva el código (`conflict`, `invalid_state`, `forbidden`…). */
+export class TareaAccionError extends Error {
+  constructor(message: string, readonly code: string | null) {
+    super(message);
+    this.name = 'TareaAccionError';
+  }
+}
+
 export function useTareaAcciones() {
   const { isSucursalAccount } = useAuth();
   const queryClient = useQueryClient();
@@ -23,7 +31,7 @@ export function useTareaAcciones() {
         : await supabase.rpc('tareas_accion', { p_tarea: id, p_version: version, p_accion: accion });
       if (response.error) throw new Error('No pudimos confirmar la acción. Actualizá la lista antes de reintentar.');
       const result = response.data as unknown as ActionResult;
-      if (!result?.ok) throw new Error(result?.message || 'No pudimos realizar la acción.');
+      if (!result?.ok) throw new TareaAccionError(result?.message || 'No pudimos realizar la acción.', result?.code ?? null);
       return result;
     },
     onSettled: (_data, _error, variables) => {

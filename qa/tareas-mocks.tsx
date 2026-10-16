@@ -7,10 +7,14 @@ const params = new URLSearchParams(location.search);
 const rol = params.get('rol') ?? 'owner';
 const escenario = params.get('estado') ?? 'normal';
 const TZ = 'America/Argentina/Buenos_Aires';
-const today = todayInTimezoneIso(TZ);
+// `?hoy=AAAA-MM-DD`: día de la organización para revisar el aviso semanal (lunes, jueves, sábado, domingo).
+const hoyParam = params.get('hoy');
+const today = hoyParam && /^\d{4}-\d{2}-\d{2}$/.test(hoyParam) ? hoyParam : todayInTimezoneIso(TZ);
+export function useOrganizationToday() { return today; }
 const dia = (n: number) => new Date(Date.parse(`${today}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 const offsetLunes = (new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7;
-const hace = (dias: number) => new Date(Date.now() - dias * 86_400_000).toISOString();
+const base = hoyParam ? Date.parse(`${today}T18:00:00Z`) : Date.now();
+const hace = (dias: number) => new Date(base - dias * 86_400_000).toISOString();
 const ORG = 'org-qa';
 const S1 = 's-centro';
 const S2 = 's-norte';
@@ -107,6 +111,11 @@ async function responder(q: Consulta) {
     return { data: escenario === 'nuevo' ? [] : [{ id: 'existe' }], error: null };
   }
   if (q.tabla === 'tareas_recurrentes') return { data: enSucursal(recetas, q), error: null };
+  // Aviso semanal: `?aviso=listo` simula "Listo" ya elegido; `?pref=off`, la preferencia apagada.
+  if (q.tabla === 'tareas_aviso_semanal') return { data: params.get('aviso') === 'listo' ? { estado: 'listo', pospuesto_hasta: null } : null, error: null };
+  if (q.tabla === 'user_notification_preferences') {
+    return { data: params.get('pref') === 'off' ? [{ event_type: 'tareas_resumen_semanal', enabled: false, mode: null }] : [], error: null };
+  }
   if (q.tabla === 'barberos_sucursales') return { data: q.eq.barbero_id ? [{ id: 'm', sucursal_id: S1, tipo: 'principal', fecha_inicio: null, fecha_fin: null }] : personas, error: null };
   if (q.tabla === 'sucursales') return { data: { id: q.eq.id }, error: null };
   return { data: [], error: null };
@@ -124,6 +133,7 @@ function consulta(tabla: string) {
     insert: () => { q.escritura = 'insert'; return api; },
     update: () => { q.escritura = 'update'; return api; },
     delete: () => { q.escritura = 'delete'; return api; },
+    upsert: () => { q.escritura = 'upsert'; return api; },
     single: () => { q.unico = true; return api; },
     maybeSingle: () => { q.unico = true; return api; },
     then: (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) => responder(q).then(ok, ko),

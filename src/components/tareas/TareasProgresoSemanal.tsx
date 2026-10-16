@@ -10,6 +10,8 @@ interface Props {
   /** Lleva a "Necesitan atención" cuando hay pendientes de semanas anteriores. */
   onVerAtencion?: () => void;
   className?: string;
+  /** Id del título: el aviso semanal puede abrirse con Principal → Tareas montado detrás. */
+  idTitulo?: string;
 }
 
 const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
@@ -18,7 +20,7 @@ const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno
  * Principal → Tareas → parte superior. Cuánto de lo previsto para esta semana (lunes a domingo de la
  * organización) ya se resolvió. Unidad reutilizable: recibe números ya calculados, no consulta nada.
  */
-export function TareasProgresoSemanal({ progreso, rango, onVerAtencion, className }: Props) {
+export function TareasProgresoSemanal({ progreso, rango, onVerAtencion, className, idTitulo = 'tareas-progreso-titulo' }: Props) {
   const { completadas, total, vencidas, pendientes, programadas, anteriores } = progreso;
   const porcentaje = total > 0 ? Math.round((completadas / total) * 100) : 0;
   const detalle = [
@@ -28,9 +30,9 @@ export function TareasProgresoSemanal({ progreso, rango, onVerAtencion, classNam
   ].filter(Boolean) as string[];
 
   return (
-    <section aria-labelledby="tareas-progreso-titulo" className={cn('rounded-xl border border-border bg-card px-4 py-3.5 shadow-sm', className)}>
+    <section aria-labelledby={idTitulo} className={cn('rounded-xl border border-border bg-card px-4 py-3.5 shadow-sm', className)}>
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 id="tareas-progreso-titulo" className="text-sm font-medium text-foreground">
+        <h2 id={idTitulo} className="text-sm font-medium text-foreground">
           Esta semana <span className="font-normal text-muted-foreground">· {rango}</span>
         </h2>
         {total > 0 ? (

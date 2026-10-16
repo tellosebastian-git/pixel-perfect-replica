@@ -130,7 +130,9 @@ Todos son `SECURITY DEFINER`, crean el evento y sus entregas, y dependen de los 
    falla si una función `_notif*`, `notif_*` o `upsert_notification*` queda ejecutable por
    un cliente sin estar en la lista permitida.
 5. Registrar el evento en `src/lib/notifications/catalog.ts` (`rolesAllowed` es solo un
-   filtro de presentación, no una barrera de seguridad).
+   filtro de presentación, no una barrera de seguridad). Un aviso que se muestra en la app pero **no** se entrega a la
+   campana (hoy: `tareas_resumen_semanal`) lleva `inBell: false`: aparece en Configuración → Notificaciones como
+   preferencia, pero no en los filtros de la campana.
 6. Sumar un escenario a `supabase/tests/notifications-security-sql.mjs`.
 
 ## Pruebas
@@ -150,6 +152,20 @@ migraciones abortan ante dueños distintos, llamadores `SECURITY INVOKER` descon
 trabajos de pg_cron que perderían acceso o políticas inesperadas. Datos 100 % sintéticos,
 sin URLs ni credenciales. Se verificó además por mutación que las pruebas fallan si se
 debilita cada migración.
+
+## Campana → tarea puntual y aviso semanal de Tareas (BUILD 4C, local 2026-10-15)
+
+Sin cambios de base en este sistema (ni tablas, ni productores, ni RLS de notificaciones).
+
+| Ubicación en la app | Archivo técnico | Cambio |
+|---|---|---|
+| Campana → tocar una notificación de Tareas | `src/components/notifications/NotificationsBell.tsx`, `src/components/AppSidebar.tsx` | `onNavigate` recibe la notificación tocada y la barra lateral pide ir a **esa** tarea (`irATareas(destinoDeNotificacion(n))`, `src/lib/tareasNavegacion.ts`): `source_table = 'tareas'` abre la tarea o petición con su detalle; `tareas_recurrentes`, su Tarea automática; otros módulos, la lista. Si ya no existe o no es accesible, Tareas lo dice sin revelar datos (lectura con la sesión del usuario, RLS). |
+| (datos) | `src/hooks/useNotifications.ts` | `NotificationItem.source_table` (ya venía en la entrega; no se exponía). |
+| Campana — accesibilidad | `src/components/notifications/NotificationsBell.tsx` | Filtros con nombre (“Filtrar por sucursal/categoría/tipo/fecha”); el botón colapsado se anuncia “Notificaciones, N sin leer” (antes, solo el número). |
+| Configuración → Notificaciones | `src/lib/notifications/catalog.ts`, `src/hooks/useNotificationPreferences.ts` | Preferencia **Resumen semanal de Tareas** (`tareas_resumen_semanal`, `inBell: false`) sobre `user_notification_preferences` existente (sin migración: la tabla no restringe `event_type`). El hook expone `preferencesReady`/`preferencesError` para que un aviso apagado nunca aparezca un instante. La preferencia es por usuario (la tabla es única por usuario + evento), no por organización. |
+
+El aviso semanal **no es una notificación**: no crea eventos ni entregas, no figura en la campana y su estado vive en
+`tareas_aviso_semanal` (ver `docs/MODULOS/tareas.md`, BUILD 4C). Pruebas: `src/components/notifications/NotificationsBell.test.tsx`.
 
 ## Pendiente y límites
 

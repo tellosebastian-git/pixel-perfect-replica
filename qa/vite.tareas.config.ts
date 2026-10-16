@@ -18,6 +18,7 @@ export default defineConfig({
       { find: /^@\/contexts\/(AuthContext|OrganizationContext|SucursalContext)$/, replacement: mocks },
       { find: /^@\/components\/ActionPinGate$/, replacement: mocks },
       { find: /^@\/integrations\/supabase\/client$/, replacement: mocks },
+      { find: /^@\/hooks\/useOrganizationToday$/, replacement: mocks },
       { find: '@', replacement: path.resolve(root, 'src') },
     ],
   },

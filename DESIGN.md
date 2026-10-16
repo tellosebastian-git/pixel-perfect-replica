@@ -277,6 +277,14 @@ Todo overlay de Vittro (`DrawerForm`, `Dialog`, `AlertDialog`, `Popover`, `Dropd
 - **Safe areas y teclado virtual:** ya resueltos donde corresponden — `Sheet`/`DrawerForm` reservan `env(safe-area-inset-bottom)`. `Dialog`/`AlertDialog`/`Popover`/`DropdownMenu` no tocan el borde del viewport por diseño (gutter propio), así que no necesitan safe-area duplicado. El teclado virtual no se resuelve con lógica nueva: el contenedor scrolleable ya alcanza para que el navegador lleve el campo enfocado a la vista.
 - **`Select`** ya cumplía el contrato (`max-h-96`, viewport interno de Radix, scroll buttons) — auditado, no tocado.
 
+### Avisos al entrar — uno solo por entrada (4C)
+Onboarding, resumen mensual y aviso semanal de Tareas son los avisos **automáticos** al entrar a Vittro. Los coordina `AvisosGlobalesProvider` (`src/components/avisos/AvisosGlobales.tsx`, reglas puras en `src/lib/avisosGlobales.ts`); un aviso nuevo de este tipo se suma al coordinador, nunca abre su propio overlay automático por fuera.
+
+- **Prioridad fija:** onboarding > resumen mensual > Tareas. El de menor prioridad espera mientras uno de mayor prioridad no se resolvió.
+- **Uno solo por entrada:** nunca dos a la vez ni encadenados (cerrar el resumen no abre el de Tareas); el que no tocó vuelve en una entrada posterior.
+- **Nunca interrumpe:** no se abre encima de un `Dialog`/`Drawer`/PIN/menú/selector, con un campo en edición, con una acción guardándose, ni si la persona ya tocó o escribió en el contenido principal (`<main>`) — en ese caso queda para la próxima entrada.
+- **Forma:** `.resumen-sheet` (sheet inferior en Compact, centrado desde 640px), encabezado y pie fijos, cuerpo con scroll propio. Escape, clic afuera y la X equivalen a "más tarde": un cierre accidental nunca lo da por resuelto. Nunca toast ni banner.
+
 ### Fecha y hora — `DatePicker` / `TimePicker`
 Canon nuevo (C2): `DatePicker` y `TimePicker` (`ui/date-picker.tsx`, `ui/time-picker.tsx`) reemplazan el picker nativo del navegador/SO en formularios de Vittro. `input type="date"`/`type="time"` **no** es un patrón válido para código nuevo — los usos nativos que aún quedan son deuda de migración, no excepciones del canon (ver `DESIGN_BACKLOG.md`).
 

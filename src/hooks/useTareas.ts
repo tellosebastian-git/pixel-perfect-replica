@@ -64,13 +64,15 @@ export interface TareaInsert {
   vencimiento_dias?: number;
 }
 
-export function useTareas() {
+/** `enabled: false`: no lee (p. ej. el aviso semanal mientras no le toca aparecer). Comparte caché con Principal → Tareas. */
+export function useTareas(options: { enabled?: boolean } = {}) {
   const { organization } = useOrganization();
   const { currentSucursal, sucursales, isAllMode, isLoading: scopeLoading, error: scopeError, refreshSucursales } = useSucursal();
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
 
-  const canRead = !!organization?.id && !!user?.id && !scopeLoading && !scopeError && (!!currentSucursal || isAllMode);
+  const canRead = !!organization?.id && !!user?.id && !scopeLoading && !scopeError && (!!currentSucursal || isAllMode)
+    && options.enabled !== false;
   const { data, isLoading, error, refetch, isFetching, dataUpdatedAt } = useQuery({
     queryKey: ['tareas', 'operativas', organization?.id, user?.id, currentSucursal?.id],
     queryFn: ({ signal }) => readAllTaskPages(cursor => fetchTaskPage({ organizationId: organization!.id, sucursalId: currentSucursal?.id ?? null, signal }, cursor)),

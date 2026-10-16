@@ -62,6 +62,8 @@ export interface NotificationItem {
   fecha: string;               // notification_at ISO
   read: boolean;
   source_module: string;
+  /** `tareas` (una tarea o petición) o `tareas_recurrentes` (una Tarea automática). */
+  source_table: string | null;
   sucursal_id: string | null;
   actor_name: string | null;
   authorized_by_name: string | null;
@@ -201,6 +203,7 @@ export function useNotifications() {
         fecha: n.notification_at,
         read: !!read,
         source_module: n.source_module,
+        source_table: n.source_table ?? null,
         sucursal_id: n.sucursal_id ?? null,
         actor_name: n.actor_name ?? null,
         authorized_by_name: n.authorized_by_name ?? null,

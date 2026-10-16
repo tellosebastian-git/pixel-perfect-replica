@@ -34,6 +34,10 @@ export interface TareaFilaProps {
   /** Otra acción de Tareas está en curso: evita doble envío. */
   bloqueada?: boolean;
   menu?: AccionMenu[];
+  /** Id de la tarea: permite llegar a la fila desde la campana o el aviso semanal. */
+  domId?: string;
+  /** Orientación breve al llegar desde otro lugar (se apaga sola). */
+  resaltada?: boolean;
 }
 
 /**
@@ -42,13 +46,15 @@ export interface TareaFilaProps {
  */
 export function TareaFila({
   titulo, descripcion, estado, meta, automatica, onAbrir, onCompletar, onIniciar, enCurso = null, bloqueada = false, menu = [],
+  domId, resaltada = false,
 }: TareaFilaProps) {
   const vencida = estado === 'vencida' || estado === 'en_progreso_vencida';
   const enProgreso = estado === 'en_progreso' || estado === 'en_progreso_vencida';
   const ocupada = bloqueada || !!enCurso;
 
   return (
-    <li className="flex items-start gap-1.5 px-2 py-2.5 sm:gap-2 sm:px-3">
+    <li id={domId ? `tarea-${domId}` : undefined}
+      className={cn('flex items-start gap-1.5 px-2 py-2.5 transition-colors duration-700 sm:gap-2 sm:px-3', resaltada && 'bg-primary/5')}>
       <Indicador estado={estado} titulo={titulo} onCompletar={onCompletar} completando={enCurso === 'completar'} deshabilitado={ocupada} />
 
       <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-4 gap-y-2">

@@ -462,6 +462,12 @@
   }
 }
 
+/* Aviso semanal de Tareas abierto (diálogo modal): el "Deshacer" del toast de completar sigue usable. El aviso
+   ignora los clics sobre los toasts como "clic afuera", así que tocar el toast no lo cierra. */
+body[data-aviso-tareas] [data-sonner-toaster] {
+  pointer-events: auto;
+}
+
 /* Accesibilidad: anular movimiento si el usuario lo pide. */
 @media (prefers-reduced-motion: reduce) {
   *,

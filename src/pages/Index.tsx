@@ -27,13 +27,25 @@ import { useOnboarding } from '@/components/onboarding/OnboardingProvider';
 import { OnboardingOverlay } from '@/components/onboarding/OnboardingOverlay';
 import { OnboardingTooltip } from '@/components/onboarding/OnboardingTooltip';
 import { ResumenMensualStory } from '@/components/resumenMensual/ResumenMensualStory';
+import { AvisosGlobalesProvider, useAvisoGlobal } from '@/components/avisos/AvisosGlobales';
+import { AvisoSemanalTareas } from '@/components/tareas/AvisoSemanalTareas';
+import { consumirDestinoTareas, useDestinoTareas } from '@/lib/tareasNavegacion';
+
+/** El tour de onboarding es el primero de los avisos globales al entrar. */
+function OnboardingEnAvisos() {
+  const { avisoGlobal } = useOnboarding();
+  const { abierto, cerrar } = useAvisoGlobal('onboarding', avisoGlobal);
+  // Terminado o salteado, el tour deja de ocupar el lugar, sin dar paso a otro aviso en esta entrada.
+  useEffect(() => { if (abierto && avisoGlobal !== 'listo') cerrar(); }, [abierto, avisoGlobal, cerrar]);
+  return null;
+}
 
 const Index = () => {
   const demo = useFinanceDemo();
   const { user, canManagePayments, canOperarCajaYGastos, canManageConfig, canViewConfig, isOwner, hasNoAccess, canViewResumen, canViewTareas, canViewMiNegocio, canViewFinanzas, canViewTurnosAgenda, canViewClientes, roles, isLoading: authLoading } = useAuth();
   const { organization } = useOrganization();
   usePushNotifications(demo.active ? undefined : user?.id, demo.active ? undefined : organization?.id);
-  const { access: subscriptionAccess } = useSubscriptionAccess();
+  const { access: subscriptionAccess, isLoading: subscriptionLoading } = useSubscriptionAccess();
   const onboarding = useOnboarding();
   const effectivePlan = resolveEffectivePlan(subscriptionAccess, organization?.plan);
 
@@ -68,6 +80,19 @@ const Index = () => {
     if (tab === 'finanzas') setActiveTab(tab);
     else navigateFromFinance(() => setActiveTab(tab));
   };
+
+  // Campana o aviso semanal → Principal → Tareas con una tarea concreta: TareasPanel la busca y la abre.
+  const destinoTareas = useDestinoTareas();
+  useEffect(() => {
+    if (!destinoTareas) return;
+    if (!canViewTareas || (onboarding.isActive && !onboarding.isAllowedTab('tareas'))) { consumirDestinoTareas(); return; }
+    if (activeTab !== 'tareas') handleTabChange('tareas');
+    // Sin el plan, Tareas muestra el bloqueo del plan: no queda nada que abrir.
+    if (!subscriptionLoading && !planAllowsFeature(effectivePlan, 'tasks')) consumirDestinoTareas();
+  }, [destinoTareas]); // eslint-disable-line react-hooks/exhaustive-deps
+  // null mientras no se sabe (cargos o plan): el aviso semanal espera en vez de descartarse.
+  const tareasDisponible = !rolesLoaded || subscriptionLoading ? null : canViewTareas && planAllowsFeature(effectivePlan, 'tasks');
+  const entradaAvisos = rolesLoaded && user?.id && organization?.id ? `${user.id}:${organization.id}` : null;
 
   const goToGeneralConfig = () => navigateFromFinance(() => {
     setConfigInitialSection('payments');
@@ -218,11 +243,16 @@ const Index = () => {
   return (
     <div className="h-svh overflow-hidden bg-background flex w-full">
       <AppSidebar activeTab={displayedTab} onTabChange={handleTabChange} />
-      {!demo.active && <>
-        <OnboardingOverlay />
-        <OnboardingTooltip />
-        <ResumenMensualStory />
-      </>}
+      {!demo.active && (
+        // Avisos al entrar: onboarding > resumen mensual > Tareas, uno solo por entrada.
+        <AvisosGlobalesProvider entrada={entradaAvisos}>
+          <OnboardingOverlay />
+          <OnboardingTooltip />
+          <OnboardingEnAvisos />
+          <ResumenMensualStory />
+          <AvisoSemanalTareas disponible={tareasDisponible} />
+        </AvisosGlobalesProvider>
+      )}
 
       <main className={cn("h-full min-w-0 flex-1 overflow-y-auto overflow-x-hidden")}>
         <div className={cn("mx-auto px-4 py-6 sm:px-6 md:px-8", displayedTab === 'turnos-agenda' ? "max-w-none px-4 md:px-4" : "max-w-7xl")}>

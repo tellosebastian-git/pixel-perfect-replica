@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertTriangle, CalendarDays, CheckCircle2, Clock, Inbox, User, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -6,6 +6,7 @@ import { StatusPill } from '@/components/ui/StatusPill';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Tarea } from '@/hooks/useTareas';
 import { formatTimestampInTimezone } from '@/lib/dateUtils';
+import { cn } from '@/lib/utils';
 import { getPeticionVencimiento } from '@/lib/tareasVencimiento';
 import { MenuFilaAcciones, MetaSucursal } from './TareaFila';
 import { ListaTareas } from './TareasSeccion';
@@ -34,6 +35,8 @@ interface Props {
   onEliminar: (t: Tarea) => void;
   /** Acción en curso: id de la petición. */
   resolviendo: string | null;
+  /** Petición a la que se llegó desde la campana: se muestra (sin filtros) y se resalta un momento. */
+  resaltadaId?: string | null;
 }
 
 /**
@@ -42,9 +45,14 @@ interface Props {
  */
 export function PeticionesLista({
   peticiones, hasData, error, onReintentar, timezone, diasDefault, sucursales, sucursalNombre, puedeEliminar, onResolver, onEliminar, resolviendo,
+  resaltadaId = null,
 }: Props) {
   const [estado, setEstado] = useState('todos');
   const [sucursal, setSucursal] = useState('todas');
+  // Que un filtro no esconda justo la petición a la que se llegó.
+  useEffect(() => {
+    if (resaltadaId) { setEstado('todos'); setSucursal('todas'); }
+  }, [resaltadaId]);
 
   if (!hasData) return error ? <TareasLoadError subject="las peticiones" retry={onReintentar} /> : null;
   if (peticiones.length === 0) {
@@ -95,7 +103,8 @@ export function PeticionesLista({
             const ocupada = !!resolviendo;
             const sNombre = sucursalNombre(t.sucursal_id);
             return (
-              <li key={t.id} className="flex min-w-0 flex-wrap items-start gap-x-4 gap-y-2 px-3 py-3 sm:px-4">
+              <li key={t.id} id={`tarea-${t.id}`}
+                className={cn('flex min-w-0 flex-wrap items-start gap-x-4 gap-y-2 px-3 py-3 transition-colors duration-700 sm:px-4', resaltadaId === t.id && 'bg-primary/5')}>
                 <div className="min-w-0 flex-1 basis-56">
                   <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span className="text-sm font-medium text-foreground">{t.titulo}</span>

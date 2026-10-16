@@ -11,6 +11,8 @@ import { usePinProtection } from '@/hooks/usePinProtection';
 import { useWindowMode } from '@/hooks/use-window-mode';
 import { SucursalSelector } from '@/components/SucursalSelector';
 import { NotificationsBell } from '@/components/notifications/NotificationsBell';
+import type { NotificationItem } from '@/hooks/useNotifications';
+import { destinoDeNotificacion, irATareas } from '@/lib/tareasNavegacion';
 import { useSubscriptionAccess } from '@/hooks/useSubscriptionAccess';
 import {
   getRequiredPlan,
@@ -126,6 +128,11 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
   const handleTabChange = (tab: string) => {
     onTabChange(tab);
     if (isCompact) setCollapsed(true);
+  };
+  // Una notificación de Tareas lleva a esa tarea (o Tarea automática) concreta, no solo al módulo.
+  const abrirDesdeNotificacion = (n: NotificationItem) => {
+    irATareas(destinoDeNotificacion(n));
+    handleTabChange('tareas');
   };
 
   const renderNavItem = (item: NavItem, index: number) => {
@@ -403,7 +410,7 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
               </Avatar>
               {canViewTareas && (
                 <div className="[&>button]:h-8 [&>button]:w-8 [&>button]:min-w-0 [&>button]:rounded-lg [&>button]:p-0">
-                  {demo.active ? <Button variant="ghost" size="icon" disabled aria-label="Notificaciones pausadas durante la grabación"><Bell className="h-4 w-4" /></Button> : <NotificationsBell collapsed onNavigate={() => handleTabChange('tareas')} />}
+                  {demo.active ? <Button variant="ghost" size="icon" disabled aria-label="Notificaciones pausadas durante la grabación"><Bell className="h-4 w-4" /></Button> : <NotificationsBell collapsed onNavigate={abrirDesdeNotificacion} />}
                 </div>
               )}
               {!demo.active && requiresPin && isUnlocked && (
@@ -436,7 +443,7 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
               <div className="flex shrink-0 items-center gap-1">
                 {canViewTareas && (
                   <div className="[&>button]:h-8 [&>button]:w-8 [&>button]:min-w-0 [&>button]:rounded-lg [&>button]:p-0">
-                    {demo.active ? <Button variant="ghost" size="icon" disabled aria-label="Notificaciones pausadas durante la grabación"><Bell className="h-4 w-4" /></Button> : <NotificationsBell collapsed onNavigate={() => handleTabChange('tareas')} />}
+                    {demo.active ? <Button variant="ghost" size="icon" disabled aria-label="Notificaciones pausadas durante la grabación"><Bell className="h-4 w-4" /></Button> : <NotificationsBell collapsed onNavigate={abrirDesdeNotificacion} />}
                   </div>
                 )}
                 {!demo.active && requiresPin && isUnlocked && (

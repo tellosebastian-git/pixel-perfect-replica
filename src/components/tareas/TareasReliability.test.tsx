@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Tarea } from '@/hooks/useTareas';
 import type { TareaRecurrente } from '@/hooks/useTareasRecurrentes';
@@ -6,11 +6,12 @@ import type { TareaPrevista } from '@/lib/tareasAgenda';
 import { TareaFormDrawer } from './TareaFormDrawer';
 import { TareasFiltros } from './TareasFiltros';
 import { TareasPanel } from '../TareasPanel';
+import { consumirDestinoTareas, irATareas } from '@/lib/tareasNavegacion';
 
 const state = vi.hoisted(() => ({
   branch: null as string | null, error: null as Error | null, hasData: true, roles: {} as Record<string, boolean>, barberoId: 'b1' as string | null,
   tareas: [] as Tarea[], previstas: [] as TareaPrevista[], resueltas: [] as Tarea[], existe: false, orgId: 'org',
-  retry: vi.fn(), accion: vi.fn(), del: vi.fn(), ok: vi.fn(), err: vi.fn(),
+  retry: vi.fn(), accion: vi.fn(), del: vi.fn(), ok: vi.fn(), err: vi.fn(), info: vi.fn(), porId: vi.fn(),
 }));
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({
   isOwner: false, isGeneralManager: false, isManager: false, isBarber: false, isSucursalAccount: false, canManageConfig: false, ...state.roles,
@@ -44,8 +45,15 @@ vi.mock('@/hooks/useTareasRecurrentes', () => ({ useTareasRecurrentes: () => ({
   updateReceta: { mutateAsync: vi.fn() }, toggleActivo: { mutate: vi.fn(), isPending: false }, deleteReceta: { mutate: vi.fn() },
 }) }));
 vi.mock('@/components/ActionPinGate', () => ({ useRequirePinForAction: () => async () => ({ ok: true }) }));
-vi.mock('@/hooks/useTareaAcciones', () => ({ useTareaAcciones: () => ({ isPending: false, variables: undefined, mutateAsync: state.accion }) }));
-vi.mock('@/lib/feedback', () => ({ feedback: { success: state.ok, error: state.err, info: vi.fn(), dismiss: vi.fn() } }));
+vi.mock('@/hooks/useTareaAcciones', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/hooks/useTareaAcciones')>()),
+  useTareaAcciones: () => ({ isPending: false, variables: undefined, mutateAsync: state.accion }),
+}));
+vi.mock('@/lib/feedback', () => ({ feedback: { success: state.ok, error: state.err, info: state.info, dismiss: vi.fn() } }));
+vi.mock('@/lib/tareasData', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/lib/tareasData')>()),
+  fetchTareaPorId: state.porId,
+}));
 
 Element.prototype.scrollIntoView ??= () => {};
 
@@ -64,6 +72,8 @@ beforeEach(() => {
   Object.assign(state, { branch: null, error: null, hasData: true, roles: owner, barberoId: 'b1', tareas: [], previstas: [], resueltas: [], existe: false, orgId: 'org' });
   state.accion.mockResolvedValue({ ok: true, version: 'v2', estado: 'completada', actor_nombre: 'Ana', completada_at: '2026-10-14T15:00:00Z' });
   state.del.mockResolvedValue(undefined);
+  state.info.mockReset(); state.porId.mockReset();
+  consumirDestinoTareas();
   window.localStorage.clear();
 });
 
@@ -328,6 +338,74 @@ describe('Principal → Tareas', () => {
     fireEvent.click(disparador);
     expect(screen.getByText('Cerrar caja')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Ver historial/ })).toBeInTheDocument();
+  });
+});
+
+describe('llegada desde la campana o el aviso semanal', () => {
+  const llegar = (destino: Parameters<typeof irATareas>[0]) => act(() => { irATareas(destino); });
+  const flush = () => act(async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); });
+
+  it('abre el detalle de esa tarea concreta y la resalta en la lista', () => {
+    const otra = tarea({ titulo: 'Abrir caja' });
+    const destino = tarea({ titulo: 'Cerrar caja', fecha_inicio: '2026-10-16' });
+    state.tareas = [otra, destino];
+    render(<TareasPanel barbers={[]} />);
+    llegar({ tipo: 'tarea', id: destino.id });
+    expect(within(screen.getByRole('dialog')).getByRole('heading', { name: 'Cerrar caja' })).toBeInTheDocument();
+    expect(document.getElementById(`tarea-${destino.id}`)).toHaveClass('bg-primary/5');
+    expect(state.porId).not.toHaveBeenCalled();
+    expect(consumirDestinoTareas()).toBeNull();
+  });
+
+  it('una tarea que no está en la lista (p. ej. ya completada) se busca con el acceso del usuario y se abre', async () => {
+    const hecha = tarea({ titulo: 'Inventario', estado: 'completada', completada_at: '2026-10-13T12:00:00Z', completada_por_nombre: 'Juan' });
+    state.porId.mockResolvedValue(hecha);
+    render(<TareasPanel barbers={[]} />);
+    llegar({ tipo: 'tarea', id: hecha.id });
+    await flush();
+    expect(state.porId).toHaveBeenCalledWith('org', hecha.id);
+    expect(within(screen.getByRole('dialog')).getByRole('heading', { name: 'Inventario' })).toBeInTheDocument();
+  });
+
+  it('eliminada o sin acceso: lo dice sin revelar nada y deja la lista', async () => {
+    state.tareas = [tarea({ titulo: 'Abrir caja' })];
+    state.porId.mockResolvedValue(null);
+    render(<TareasPanel barbers={[]} />);
+    llegar({ tipo: 'tarea', id: 'ajena' });
+    await waitFor(() => expect(state.info).toHaveBeenCalledWith('Esa tarea ya no está disponible.', { description: 'Puede que la hayan eliminado o que ya no tengas acceso.' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByText('Abrir caja')).toBeInTheDocument();
+  });
+
+  it('si la lectura falla, avisa sin romper la navegación', async () => {
+    state.porId.mockRejectedValue(new Error('network'));
+    render(<TareasPanel barbers={[]} />);
+    llegar({ tipo: 'tarea', id: 'x' });
+    await waitFor(() => expect(state.err).toHaveBeenCalledWith('No pudimos abrir la tarea. Buscala en la lista o reintentá.'));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('una Programada abre su ocurrencia; si ya existe la tarea real, abre la real (nunca ambas)', () => {
+    state.previstas = [{ recurrencia_id: 'r1', fecha: '2026-10-16', hora: null, titulo: 'Limpieza', descripcion: null, sucursal_id: 's1',
+      assignment_scope: 'team', asignado_a_id: null, asignado_a_nombre: null }];
+    const v = render(<TareasPanel barbers={[]} />);
+    llegar({ tipo: 'prevista', recurrenciaId: 'r1', fecha: '2026-10-16' });
+    expect(within(screen.getByRole('dialog')).getByRole('heading', { name: 'Limpieza' })).toBeInTheDocument();
+    v.unmount();
+    const real = tarea({ titulo: 'Limpieza de hoy', recurrencia_id: 'r1', fecha_inicio: '2026-10-16' });
+    state.tareas = [real];
+    render(<TareasPanel barbers={[]} />);
+    llegar({ tipo: 'prevista', recurrenciaId: 'r1', fecha: '2026-10-16' });
+    expect(within(screen.getByRole('dialog')).getByRole('heading', { name: 'Limpieza de hoy' })).toBeInTheDocument();
+  });
+
+  it('una petición lleva a Peticiones y la resalta', () => {
+    const pedido = tarea({ tipo: 'peticion', titulo: 'Comprar toallas', fecha_inicio: null });
+    state.tareas = [pedido];
+    render(<TareasPanel barbers={[]} />);
+    llegar({ tipo: 'tarea', id: pedido.id });
+    expect(screen.getByRole('tab', { name: /Peticiones/ })).toHaveAttribute('aria-selected', 'true');
+    expect(document.getElementById(`tarea-${pedido.id}`)).toHaveClass('bg-primary/5');
   });
 });
 

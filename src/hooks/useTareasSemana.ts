@@ -11,13 +11,14 @@ import type { TareaPrevista } from '@/lib/tareasAgenda';
  * semana y las ocurrencias futuras de Tareas automáticas (R1), calculadas por la base con su calendario.
  * Mismo prefijo de caché `tareas`: iniciar/completar/deshacer las refresca junto con la lista.
  */
-export function useTareasSemana(today: string, options: { necesitaExistencia?: boolean } = {}) {
+export function useTareasSemana(today: string, options: { necesitaExistencia?: boolean; enabled?: boolean } = {}) {
   const { user } = useAuth();
   const { organization } = useOrganization();
   const { currentSucursal, isAllMode, isLoading: scopeLoading, error: scopeError } = useSucursal();
   const week = weekRange(today);
   const sucursalId = currentSucursal?.id ?? null;
-  const canRead = !!organization?.id && !!user?.id && !scopeLoading && !scopeError && (!!currentSucursal || isAllMode);
+  const canRead = !!organization?.id && !!user?.id && !scopeLoading && !scopeError && (!!currentSucursal || isAllMode)
+    && options.enabled !== false;
 
   const resueltas = useQuery({
     queryKey: ['tareas', 'semana', organization?.id, user?.id, sucursalId, week.lunes],

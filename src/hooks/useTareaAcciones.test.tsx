@@ -25,8 +25,8 @@ describe('acciones controladas de Tareas',()=>{
     expect(state.rpc).not.toHaveBeenCalled();
   });
   it('conflictos muestran la respuesta del servidor e invalidan lista e historial',async()=>{
-    state.rpc.mockResolvedValue({data:{ok:false,message:'La tarea cambió'},error:null});const {result,invalidate}=setup();
-    await act(async()=>{await expect(result.current.mutateAsync(request)).rejects.toThrow('La tarea cambió');});
+    state.rpc.mockResolvedValue({data:{ok:false,code:'conflict',message:'La tarea cambió'},error:null});const {result,invalidate}=setup();
+    await act(async()=>{await expect(result.current.mutateAsync(request)).rejects.toMatchObject({message:'La tarea cambió',code:'conflict'});});
     expect(invalidate).toHaveBeenCalledWith({queryKey:['tareas']});expect(state.rpc).toHaveBeenCalledOnce();
   });
   it('un fallo de transporte no simula éxito ni reintenta completar',async()=>{
