@@ -172,8 +172,7 @@ mutaciones, comercial 18. Sigue sin aplicarse en producción.
 
 ## Tareas — BUILD 4B: rework UX/UI completo, local (2026-10-14)
 
-**Implementación local sobre el mismo worktree de 4A (`codex/tareas-4a-1`), sin commit, sin push, sin
-despliegue.** Principal → Tareas (`src/components/TareasPanel.tsx`) deja la grilla de tarjetas: lista vertical
+**Estado al cierre de 4B:** implementación local sobre el mismo worktree de 4A (`codex/tareas-4a-1`), sin commit, sin push, sin despliegue en ese momento (estado vigente de la rama en BUILD 4C). Principal → Tareas (`src/components/TareasPanel.tsx`) deja la grilla de tarjetas: lista vertical
 de filas (`src/components/tareas/TareaFila.tsx`) organizada en Necesitan atención / Hoy / Próximas / Sin fecha
 (`src/lib/tareasAgenda.ts`), progreso semanal lunes–domingo de la organización
 (`src/components/tareas/TareasProgresoSemanal.tsx`) con Programadas de Tareas automáticas calculadas por la base
@@ -190,19 +189,19 @@ subvista de configuración (`RecurrentesPanel.tsx`, `RecurrenteFila.tsx`). Se el
 Vitest **235/33** (base 4A 199/32), build OK, `tsc` raíz exit 0 y `-p tsconfig.app.json` con los mismos 5 errores,
 lint global 378 errores / 49 advertencias (base 378/50), detector de Impeccable sin hallazgos.
 QA visual con datos sintéticos (`qa/tareas.html`, sin sesión real) a 375/768/1024/1280+; **QA autenticado
-pendiente**. 4C (avisos semanales) no iniciado. Detalle: `docs/MODULOS/tareas.md`.
+pendiente**. 4C (avisos semanales) no se había iniciado en ese cierre; ver su estado posterior abajo. Detalle: `docs/MODULOS/tareas.md`.
 
 ## Tareas — BUILD 4C: avisos semanales, integración global y cierre de Etapa 4, local (2026-10-15)
 
-**Etapa 4 cerrada localmente (4A + 4B + 4C), sin push, sin despliegue y sin migraciones aplicadas en producción.**
-Por pedido del usuario, **4C no se commiteó**: sus cambios quedan en el working tree de `feat/tareas-etapa-4`.
+**Etapa 4 cerrada localmente (4A + 4B + 4C), commiteada y respaldada en la rama GitHub `origin/feat/tareas-etapa-4`; sin publicación en `main`, sin despliegue y sin migraciones aplicadas en producción.**
+BUILD 4C está incluido en `63b78369ec55634970c69189a8167a570ae52999`, verificado tanto localmente como en esa rama remota el 2026-10-15. `origin/main` y `production/main` permanecen en `3377f8d6`.
 El trabajo ya no vive en el worktree de `.codex`: 4A + 4B se commitearon en `codex/tareas-4a-1` (`64b63b7c`) y se
 integraron en la rama local `feat/tareas-etapa-4` del checkout normal (`C:UsersSebastian Telloproyectospixel-perfect-replica`;
 la ruta `…projects…` del brief no existe), con merge de `origin/main` (`4c77935c`, conflictos solo en
 `supabase/config.toml` y este archivo, resueltos conservando ambos lados). `npm run dev` desde esa carpeta muestra 4A + 4B + 4C,
 pero su `.env` apunta al proyecto Supabase de producción, que **no tiene** las migraciones de 4A/4C: la UI nueva carga y las
 lecturas/acciones nuevas (Programadas, acciones de servidor, estado del aviso) fallan de forma segura hasta aplicar las
-migraciones en un ambiente de prueba. Para revisar sin backend: `qa/tareas.html` (configuración `qa-tareas` de `.claude/launch.json`).
+migraciones en un ambiente de prueba. La inspección de metadata de producción del 2026-10-15 confirmó ausentes ambas migraciones (`20261014120000_tareas_acciones_controladas` y `20261015120000_tareas_aviso_semanal`), la Edge Function `tareas-action`, `public.tareas_aviso_semanal`, `tareas.accion_version` y `public.tareas_accion`; sin consultar datos ni modificar la base. Para revisar sin backend: `qa/tareas.html` (configuración `qa-tareas` de `.claude/launch.json`).
 
 - **Aviso semanal de Tareas** (`src/components/tareas/AvisoSemanalTareas.tsx`, `src/hooks/useAvisoSemanalTareas.ts`,
   `src/lib/tareasAvisoSemanal.ts`): al entrar a Vittro, con el día de la organización. Lunes a miércoles “Arranca la semana”

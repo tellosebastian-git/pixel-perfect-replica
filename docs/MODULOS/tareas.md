@@ -7,8 +7,8 @@ pre-lanzamiento” al final). Falta el QA manual de Sebastián (ver `ESTADO_ACTU
 **BUILD 4A implementado y validado localmente — 2026-10-14:** datos/lógica y acciones controladas de
 seguridad/permisos/PIN en la misma rama `codex/tareas-4a-1`. Ese nombre de rama es histórico:
 no existe un BUILD 4A-2. Regresión local y 17/17 mutaciones de acciones y proyecciones aprobadas.
-**BUILD 4B (rework UX/UI) implementado localmente — 2026-10-14**, en la misma rama y sin commit (ver “BUILD 4B”
-al final). 4C (avisos semanales) no se inició. Sin publicación ni cambios en producción.
+**BUILD 4B (rework UX/UI) implementado localmente — 2026-10-14** y **BUILD 4C (avisos semanales) cerrado localmente — 2026-10-15** (ver ambos builds al final).
+Etapa 4 commiteada y respaldada en `origin/feat/tareas-etapa-4` (`63b78369`); sin publicación en `main`, despliegue ni cambios en producción.
 
 - **Ubicación en la app:** barra lateral → Principal → Tareas (`src/components/TareasPanel.tsx`).
   Pestañas Tareas / Peticiones; dentro de Tareas, “Mis tareas | Negocio” (cuando corresponde), progreso de
@@ -258,7 +258,7 @@ de sanearlo fila por fila. No es una migración: es una operación única, con s
   la paginación se corrigieron localmente en BUILD 4A; no confundir ese estado local con un despliegue.
 - Sigue sin existir un equivalente TypeScript del calendario: las próximas fechas de la semana las calcula la base
   (`tareas_previstas`, corrección final de 4A) y el frontend solo las ubica.
-- Avisos semanales globales (lunes/jueves/sábado): BUILD 4C, no iniciado.
+- Avisos semanales globales (lunes/jueves/sábado): implementados localmente en BUILD 4C; despliegue y QA autenticado pendientes (ver al final).
 
 ## BUILD 4A — datos, lógica, seguridad y permisos (local, 2026-10-14)
 
@@ -476,7 +476,7 @@ remota, no usa credenciales reales y no modifica dependencias de la aplicación.
 
 ### Cierre local y publicación
 
-BUILD 4A completo en código y regresión local: datos/lógica, acciones seguras, PIN, roles, integridad,
+Estado al cierre de BUILD 4A (histórico; estado vigente de la rama en BUILD 4C): completo en código y regresión local, con datos/lógica, acciones seguras, PIN, roles, integridad,
 timestamps, deshacer, concurrencia, tipos y documentación. Rama `codex/tareas-4a-1`, base `43bd9ce`;
 cambios locales sin commit/push, sin migración/Edge Function aplicada a producción. No se inició 4B/4C.
 La publicación futura requiere autorización separada, coordinación de frontend/migración/Edge Function,
@@ -647,8 +647,8 @@ Sin commit, sin push, sin despliegue. Implementado sobre el estado completo de 4
 
 ## BUILD 4C — avisos semanales, integración global y cierre de Etapa 4 (local, 2026-10-15)
 
-Último build de la Etapa 4. Sin push, sin despliegue, sin migraciones aplicadas en producción. Por pedido del usuario,
-4C no se commiteó: queda en el working tree de `feat/tareas-etapa-4`, sobre los commits de 4A + 4B.
+Último build de la Etapa 4, incluido en el commit `63b78369ec55634970c69189a8167a570ae52999` junto al estado integrado de 4A + 4B.
+Commit verificado localmente y en `origin/feat/tareas-etapa-4` el 2026-10-15. Sin publicación en `main`, sin despliegue y sin migraciones aplicadas en producción. `origin/main` y `production/main` permanecen en `3377f8d6`.
 
 ### Repositorio
 
@@ -658,7 +658,7 @@ Sin commit, sin push, sin despliegue. Implementado sobre el estado completo de 4
   (`[functions.tareas-action]` + plantilla de correo de aliados) y `docs/ESTADO_ACTUAL.md`, resueltos conservando ambos lados.
 - `npm run dev` en esa carpeta muestra 4A + 4B + 4C. Su `.env` apunta al proyecto Supabase de producción, que no tiene las
   migraciones de 4A/4C: la UI nueva se ve y lo nuevo del servidor falla de forma segura hasta aplicar las migraciones en un
-  ambiente de prueba. Sin backend: `qa/tareas.html` (`.claude/launch.json` → `qa-tareas`, puerto 8091).
+  ambiente de prueba. Inspección de metadata de producción del 2026-10-15: ausentes las migraciones `20261014120000_tareas_acciones_controladas` y `20261015120000_tareas_aviso_semanal`, la Edge Function `tareas-action`, `public.tareas_aviso_semanal`, `tareas.accion_version` y `public.tareas_accion`; sin consultar datos ni modificar la base. Sin backend: `qa/tareas.html` (`.claude/launch.json` → `qa-tareas`, puerto 8091).
 
 ### Aviso semanal
 
