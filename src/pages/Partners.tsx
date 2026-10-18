@@ -4,8 +4,10 @@ import { ArrowRight, ArrowLeft, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PartnerLevelExplorer } from "@/components/partners/PartnerLevels";
 import { PARTNER_TERMS_VERSION } from "../../supabase/functions/_shared/partner-domain";
+import { useCanonical } from "@/hooks/useCanonical";
 
 export default function Partners() {
+  useCanonical("/aliados");
   const location = useLocation();
   const [conditionsOpen, setConditionsOpen] = useState(
     location.hash === "#condiciones",
