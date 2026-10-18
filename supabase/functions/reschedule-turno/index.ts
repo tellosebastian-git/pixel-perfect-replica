@@ -189,6 +189,8 @@ Deno.serve(async (req) => {
     const bufferAfter = configRes.data?.buffer_despues_min || 0;
 
     const conflicts = await findConflictingTurnos(supabase, {
+      organizationId: turno.organization_id,
+      sucursalId: turno.sucursal_id,
       barberoId: turno.barbero_id,
       fecha: nueva_fecha,
       hora_inicio: nueva_hora_inicio,

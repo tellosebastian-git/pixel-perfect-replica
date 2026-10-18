@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { supabaseUntyped } from '@/lib/supabaseUntyped';
 import { useAuth } from '@/contexts/AuthContext';
 
 export type TareaAccion = 'iniciar' | 'completar' | 'deshacer';
@@ -28,7 +29,7 @@ export function useTareaAcciones() {
       if (!version) throw new Error('Actualizá la lista antes de realizar la acción.');
       const response = isSucursalAccount
         ? await supabase.functions.invoke('tareas-action', { body: { tarea_id: id, version, accion, pin } })
-        : await supabase.rpc('tareas_accion', { p_tarea: id, p_version: version, p_accion: accion });
+        : await supabaseUntyped.rpc('tareas_accion', { p_tarea: id, p_version: version, p_accion: accion });
       if (response.error) throw new Error('No pudimos confirmar la acción. Actualizá la lista antes de reintentar.');
       const result = response.data as unknown as ActionResult;
       if (!result?.ok) throw new TareaAccionError(result?.message || 'No pudimos realizar la acción.', result?.code ?? null);

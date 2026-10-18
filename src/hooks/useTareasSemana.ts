@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { supabaseUntyped } from '@/lib/supabaseUntyped';
 import { useAuth } from '@/contexts/AuthContext';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { useSucursal } from '@/contexts/SucursalContext';
@@ -31,11 +32,12 @@ export function useTareasSemana(today: string, options: { necesitaExistencia?: b
     queryKey: ['tareas', 'previstas', organization?.id, user?.id, sucursalId, today, week.domingo],
     enabled: canRead,
     queryFn: async ({ signal }) => {
-      const { data, error } = await supabase
-        .rpc('tareas_previstas', { p_desde: today, p_hasta: week.domingo, p_sucursal: sucursalId ?? undefined })
-        .abortSignal(signal);
+      // RPC no incluida en los tipos generados: cliente sin tipar (la cancelación de
+      // React Query descarta el resultado; no hace falta abortSignal acá).
+      const { data, error } = await supabaseUntyped
+        .rpc<TareaPrevista>('tareas_previstas', { p_desde: today, p_hasta: week.domingo, p_sucursal: sucursalId ?? undefined });
       if (error) throw error;
-      return (data ?? []) as TareaPrevista[];
+      return data ?? [];
     },
   });
 
