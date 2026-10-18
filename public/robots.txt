@@ -13,4 +13,4 @@ Allow: /
 User-agent: *
 Allow: /
 
-Sitemap: https://testingvitt.one/sitemap.xml
+Sitemap: https://vittro.com.ar/sitemap.xml

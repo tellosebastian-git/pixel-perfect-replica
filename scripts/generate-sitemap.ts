@@ -3,7 +3,7 @@
 import { writeFileSync } from "fs"
 import { resolve } from "path"
 
-const BASE_URL = "https://testingvitt.one"
+const BASE_URL = "https://vittro.com.ar"
 
 interface SitemapEntry {
   path: string
