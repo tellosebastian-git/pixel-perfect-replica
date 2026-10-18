@@ -63,7 +63,7 @@ export function useSubscriptionAccess(): UseSubscriptionAccessResult {
       // supabaseUntyped.rpc devuelve una Promise plana (sin abortSignal); la generación
       // y controller.signal.aborted ya descartan respuestas tardías.
       const { data, error: rpcError } = await supabaseUntyped
-        .rpc('get_organization_subscription_access', { _org_id: orgId });
+        .rpc<SubscriptionAccess>('get_organization_subscription_access', { _org_id: orgId });
 
       if (generationRef.current !== generation || controller.signal.aborted) return;
       if (rpcError) throw rpcError;
