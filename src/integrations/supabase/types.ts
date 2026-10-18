@@ -2683,6 +2683,902 @@ export type Database = {
           },
         ]
       }
+      partner_adjustments: {
+        Row: {
+          commission_id: string
+          created_at: string
+          delta_cents: number
+          id: string
+          organization_id: string
+          referral_id: string
+          source_revision: string
+          sucursal_id: string
+        }
+        Insert: {
+          commission_id: string
+          created_at?: string
+          delta_cents: number
+          id?: string
+          organization_id: string
+          referral_id: string
+          source_revision: string
+          sucursal_id: string
+        }
+        Update: {
+          commission_id?: string
+          created_at?: string
+          delta_cents?: number
+          id?: string
+          organization_id?: string
+          referral_id?: string
+          source_revision?: string
+          sucursal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_adjustments_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "partner_commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_adjustments_referral_id_organization_id_sucursal_i_fkey"
+            columns: ["referral_id", "organization_id", "sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "partner_referrals"
+            referencedColumns: ["id", "organization_id", "sucursal_id"]
+          },
+        ]
+      }
+      partner_agreements: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          ends_at: string
+          id: string
+          partner_id: string
+          percent: number
+          reason: string
+          starts_at: string
+          suspended: boolean
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          ends_at: string
+          id?: string
+          partner_id: string
+          percent: number
+          reason: string
+          starts_at: string
+          suspended?: boolean
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          ends_at?: string
+          id?: string
+          partner_id?: string
+          percent?: number
+          reason?: string
+          starts_at?: string
+          suspended?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_agreements_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partner_checkout_quotes: {
+        Row: {
+          amount_cents: number
+          catalog_amount_cents: number
+          created_at: string
+          external_reference: string | null
+          id: string
+          organization_id: string
+          percent: number
+          plan_code: string
+          plan_updated_at: string
+          preapproval_id: string | null
+          price_version: number
+          referral_id: string
+          status: string
+          sucursal_id: string
+          terms_version: string
+        }
+        Insert: {
+          amount_cents: number
+          catalog_amount_cents: number
+          created_at?: string
+          external_reference?: string | null
+          id?: string
+          organization_id: string
+          percent: number
+          plan_code: string
+          plan_updated_at: string
+          preapproval_id?: string | null
+          price_version: number
+          referral_id: string
+          status?: string
+          sucursal_id: string
+          terms_version: string
+        }
+        Update: {
+          amount_cents?: number
+          catalog_amount_cents?: number
+          created_at?: string
+          external_reference?: string | null
+          id?: string
+          organization_id?: string
+          percent?: number
+          plan_code?: string
+          plan_updated_at?: string
+          preapproval_id?: string | null
+          price_version?: number
+          referral_id?: string
+          status?: string
+          sucursal_id?: string
+          terms_version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_checkout_quotes_plan_code_fkey"
+            columns: ["plan_code"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "partner_checkout_quotes_referral_id_organization_id_sucurs_fkey"
+            columns: ["referral_id", "organization_id", "sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "partner_referrals"
+            referencedColumns: ["id", "organization_id", "sucursal_id"]
+          },
+        ]
+      }
+      partner_commissions: {
+        Row: {
+          adjustments_cents: number
+          amount_cents: number
+          available_at: string
+          created_at: string
+          first_payment_id: string
+          id: string
+          organization_id: string
+          paid_cents: number
+          partner_id: string
+          percent: number
+          referral_id: string
+          revision: number
+          status: string
+          sucursal_id: string
+        }
+        Insert: {
+          adjustments_cents?: number
+          amount_cents: number
+          available_at: string
+          created_at?: string
+          first_payment_id: string
+          id?: string
+          organization_id: string
+          paid_cents?: number
+          partner_id: string
+          percent: number
+          referral_id: string
+          revision?: number
+          status: string
+          sucursal_id: string
+        }
+        Update: {
+          adjustments_cents?: number
+          amount_cents?: number
+          available_at?: string
+          created_at?: string
+          first_payment_id?: string
+          id?: string
+          organization_id?: string
+          paid_cents?: number
+          partner_id?: string
+          percent?: number
+          referral_id?: string
+          revision?: number
+          status?: string
+          sucursal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_commissions_first_payment_id_fkey"
+            columns: ["first_payment_id"]
+            isOneToOne: true
+            referencedRelation: "platform_admin_payments_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_commissions_first_payment_id_fkey"
+            columns: ["first_payment_id"]
+            isOneToOne: true
+            referencedRelation: "subscription_payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_commissions_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_commissions_referral_id_organization_id_sucursal_i_fkey"
+            columns: ["referral_id", "organization_id", "sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "partner_referrals"
+            referencedColumns: ["id", "organization_id", "sucursal_id"]
+          },
+        ]
+      }
+      partner_identity_intents: {
+        Row: {
+          email: string
+          expires_at: string
+          nonce: string
+        }
+        Insert: {
+          email: string
+          expires_at?: string
+          nonce?: string
+        }
+        Update: {
+          email?: string
+          expires_at?: string
+          nonce?: string
+        }
+        Relationships: []
+      }
+      partner_incidents: {
+        Row: {
+          created_at: string
+          dedupe_key: string
+          id: string
+          kind: string
+          message: string
+          partner_id: string
+          reason: string | null
+          resolved: boolean
+          resolved_by: string | null
+          revision: number
+        }
+        Insert: {
+          created_at?: string
+          dedupe_key: string
+          id?: string
+          kind: string
+          message: string
+          partner_id: string
+          reason?: string | null
+          resolved?: boolean
+          resolved_by?: string | null
+          revision?: number
+        }
+        Update: {
+          created_at?: string
+          dedupe_key?: string
+          id?: string
+          kind?: string
+          message?: string
+          partner_id?: string
+          reason?: string | null
+          resolved?: boolean
+          resolved_by?: string | null
+          revision?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_incidents_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partner_instagram_accounts: {
+        Row: {
+          account_id: string
+          connected: boolean
+          followers: number
+          partner_id: string
+          revision: number
+          username: string
+          verified_at: string
+        }
+        Insert: {
+          account_id: string
+          connected?: boolean
+          followers: number
+          partner_id: string
+          revision?: number
+          username: string
+          verified_at: string
+        }
+        Update: {
+          account_id?: string
+          connected?: boolean
+          followers?: number
+          partner_id?: string
+          revision?: number
+          username?: string
+          verified_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_instagram_accounts_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: true
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partner_instagram_credentials: {
+        Row: {
+          ciphertext: string
+          expires_at: string
+          partner_id: string
+        }
+        Insert: {
+          ciphertext: string
+          expires_at: string
+          partner_id: string
+        }
+        Update: {
+          ciphertext?: string
+          expires_at?: string
+          partner_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_instagram_credentials_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: true
+            referencedRelation: "partner_instagram_accounts"
+            referencedColumns: ["partner_id"]
+          },
+        ]
+      }
+      partner_jobs: {
+        Row: {
+          attempts: number
+          completed_at: string | null
+          dedupe_key: string
+          due_at: string
+          error_code: string | null
+          id: string
+          input: Json
+          kind: string
+          lease: string | null
+          lease_until: string | null
+          status: string
+        }
+        Insert: {
+          attempts?: number
+          completed_at?: string | null
+          dedupe_key: string
+          due_at?: string
+          error_code?: string | null
+          id?: string
+          input: Json
+          kind: string
+          lease?: string | null
+          lease_until?: string | null
+          status?: string
+        }
+        Update: {
+          attempts?: number
+          completed_at?: string | null
+          dedupe_key?: string
+          due_at?: string
+          error_code?: string | null
+          id?: string
+          input?: Json
+          kind?: string
+          lease?: string | null
+          lease_until?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
+      partner_oauth_states: {
+        Row: {
+          actor_id: string
+          consumed_at: string | null
+          expires_at: string
+          hash: string
+          partner_id: string
+        }
+        Insert: {
+          actor_id: string
+          consumed_at?: string | null
+          expires_at?: string
+          hash: string
+          partner_id: string
+        }
+        Update: {
+          actor_id?: string
+          consumed_at?: string | null
+          expires_at?: string
+          hash?: string
+          partner_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_oauth_states_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partner_operations: {
+        Row: {
+          action: string
+          actor_id: string
+          created_at: string
+          fingerprint: string
+          id: string
+          reason: string
+          request_id: string
+          result: Json
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          created_at?: string
+          fingerprint: string
+          id?: string
+          reason: string
+          request_id: string
+          result: Json
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          created_at?: string
+          fingerprint?: string
+          id?: string
+          reason?: string
+          request_id?: string
+          result?: Json
+        }
+        Relationships: []
+      }
+      partner_payment_receipts: {
+        Row: {
+          amount_cents: number
+          cycle_key: string
+          external_reference: string
+          organization_id: string
+          paid_at: string
+          payment_id: string
+          referral_id: string
+          refunded_cents: number
+          status: string
+          sucursal_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount_cents: number
+          cycle_key: string
+          external_reference: string
+          organization_id: string
+          paid_at: string
+          payment_id: string
+          referral_id: string
+          refunded_cents?: number
+          status: string
+          sucursal_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          cycle_key?: string
+          external_reference?: string
+          organization_id?: string
+          paid_at?: string
+          payment_id?: string
+          referral_id?: string
+          refunded_cents?: number
+          status?: string
+          sucursal_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_payment_receipts_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: true
+            referencedRelation: "platform_admin_payments_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_payment_receipts_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: true
+            referencedRelation: "subscription_payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_payment_receipts_referral_id_organization_id_sucur_fkey"
+            columns: ["referral_id", "organization_id", "sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "partner_referrals"
+            referencedColumns: ["id", "organization_id", "sucursal_id"]
+          },
+        ]
+      }
+      partner_payout_accounts: {
+        Row: {
+          account: string
+          holder: string
+          partner_id: string
+          revision: number
+          tax_id: string
+          updated_at: string
+          verified: boolean
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          account: string
+          holder: string
+          partner_id: string
+          revision?: number
+          tax_id: string
+          updated_at?: string
+          verified?: boolean
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          account?: string
+          holder?: string
+          partner_id?: string
+          revision?: number
+          tax_id?: string
+          updated_at?: string
+          verified?: boolean
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_payout_accounts_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: true
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partner_payout_batches: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          cutoff: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          cutoff: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          cutoff?: string
+          id?: string
+        }
+        Relationships: []
+      }
+      partner_payout_entries: {
+        Row: {
+          adjustment_id: string | null
+          amount_cents: number
+          commission_id: string | null
+          id: string
+          item_id: string
+        }
+        Insert: {
+          adjustment_id?: string | null
+          amount_cents: number
+          commission_id?: string | null
+          id?: string
+          item_id: string
+        }
+        Update: {
+          adjustment_id?: string | null
+          amount_cents?: number
+          commission_id?: string | null
+          id?: string
+          item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_payout_entries_adjustment_id_fkey"
+            columns: ["adjustment_id"]
+            isOneToOne: true
+            referencedRelation: "partner_adjustments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_payout_entries_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: true
+            referencedRelation: "partner_commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_payout_entries_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "partner_payout_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partner_payout_items: {
+        Row: {
+          account: string
+          account_revision: number
+          amount_cents: number
+          batch_id: string
+          holder: string
+          id: string
+          paid_at: string | null
+          paid_by: string | null
+          partner_id: string
+          receipt_path: string | null
+          reference: string | null
+          revision: number
+          status: string
+          tax_id: string
+        }
+        Insert: {
+          account: string
+          account_revision: number
+          amount_cents: number
+          batch_id: string
+          holder: string
+          id?: string
+          paid_at?: string | null
+          paid_by?: string | null
+          partner_id: string
+          receipt_path?: string | null
+          reference?: string | null
+          revision?: number
+          status?: string
+          tax_id: string
+        }
+        Update: {
+          account?: string
+          account_revision?: number
+          amount_cents?: number
+          batch_id?: string
+          holder?: string
+          id?: string
+          paid_at?: string | null
+          paid_by?: string | null
+          partner_id?: string
+          receipt_path?: string | null
+          reference?: string | null
+          revision?: number
+          status?: string
+          tax_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_payout_items_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "partner_payout_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_payout_items_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partner_program_config: {
+        Row: {
+          billing_ready: boolean
+          contract_version: number
+          enrollment_enabled: boolean
+          singleton: boolean
+          terms_version: string
+        }
+        Insert: {
+          billing_ready?: boolean
+          contract_version?: number
+          enrollment_enabled?: boolean
+          singleton?: boolean
+          terms_version?: string
+        }
+        Update: {
+          billing_ready?: boolean
+          contract_version?: number
+          enrollment_enabled?: boolean
+          singleton?: boolean
+          terms_version?: string
+        }
+        Relationships: []
+      }
+      partner_public_limits: {
+        Row: {
+          attempts: number
+          key: string
+          window_start: string
+        }
+        Insert: {
+          attempts: number
+          key: string
+          window_start: string
+        }
+        Update: {
+          attempts?: number
+          key?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
+      partner_referrals: {
+        Row: {
+          code: string
+          created_at: string
+          first_payment_id: string | null
+          id: string
+          intro_consumed: boolean
+          organization_id: string
+          partner_id: string
+          percent_snapshot: number | null
+          qualified: boolean
+          registered_by: string | null
+          renewal_pending: boolean
+          revision: number
+          snapshot_terms: string | null
+          sucursal_id: string
+          terms_version: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          first_payment_id?: string | null
+          id?: string
+          intro_consumed?: boolean
+          organization_id: string
+          partner_id: string
+          percent_snapshot?: number | null
+          qualified?: boolean
+          registered_by?: string | null
+          renewal_pending?: boolean
+          revision?: number
+          snapshot_terms?: string | null
+          sucursal_id: string
+          terms_version: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          first_payment_id?: string | null
+          id?: string
+          intro_consumed?: boolean
+          organization_id?: string
+          partner_id?: string
+          percent_snapshot?: number | null
+          qualified?: boolean
+          registered_by?: string | null
+          renewal_pending?: boolean
+          revision?: number
+          snapshot_terms?: string | null
+          sucursal_id?: string
+          terms_version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_referrals_first_payment_id_fkey"
+            columns: ["first_payment_id"]
+            isOneToOne: true
+            referencedRelation: "platform_admin_payments_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_referrals_first_payment_id_fkey"
+            columns: ["first_payment_id"]
+            isOneToOne: true
+            referencedRelation: "subscription_payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_referrals_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_referrals_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "platform_admin_organizations_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_referrals_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_referrals_sucursal_id_organization_id_fkey"
+            columns: ["sucursal_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      partners: {
+        Row: {
+          accepted_at: string
+          code: string
+          country: string
+          created_at: string
+          id: string
+          name: string
+          revision: number
+          suspended: boolean
+          terms_version: string
+          user_id: string | null
+        }
+        Insert: {
+          accepted_at?: string
+          code: string
+          country?: string
+          created_at?: string
+          id?: string
+          name: string
+          revision?: number
+          suspended?: boolean
+          terms_version: string
+          user_id?: string | null
+        }
+        Update: {
+          accepted_at?: string
+          code?: string
+          country?: string
+          created_at?: string
+          id?: string
+          name?: string
+          revision?: number
+          suspended?: boolean
+          terms_version?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       payment_methods_config: {
         Row: {
           activo: boolean
@@ -4252,10 +5148,6 @@ export type Database = {
           updated_at: string
           vencida_at: string | null
           vencimiento_dias: number | null
-          "accion_version": string,
-          "iniciada_at": string | null,
-          "iniciada_por_nombre": string | null,
-          "iniciada_por_id": string | null,
         }
         Insert: {
           asignado_a_id?: string | null
@@ -4286,10 +5178,6 @@ export type Database = {
           updated_at?: string
           vencida_at?: string | null
           vencimiento_dias?: number | null
-          "accion_version"?: string,
-          "iniciada_at"?: string | null,
-          "iniciada_por_nombre"?: string | null,
-          "iniciada_por_id"?: string | null,
         }
         Update: {
           asignado_a_id?: string | null
@@ -4320,10 +5208,6 @@ export type Database = {
           updated_at?: string
           vencida_at?: string | null
           vencimiento_dias?: number | null
-          "accion_version"?: string,
-          "iniciada_at"?: string | null,
-          "iniciada_por_nombre"?: string | null,
-          "iniciada_por_id"?: string | null,
         }
         Relationships: [
           {
@@ -5127,26 +6011,6 @@ export type Database = {
           },
         ]
       }
-      "tareas_aviso_semanal": {
-                  Row: {
-                    "estado": string,"momento": string,"organization_id": string,"pospuesto_hasta": string | null,"semana": string,"updated_at": string,"user_id": string
-                  }
-                  ComputedFields: never
-                  Insert: {
-                    "estado": string,"momento": string,"organization_id": string,"pospuesto_hasta"?: string | null,"semana": string,"updated_at"?: string,"user_id"?: string
-                  }
-                  Update: {
-                    "estado"?: string,"momento"?: string,"organization_id"?: string,"pospuesto_hasta"?: string | null,"semana"?: string,"updated_at"?: string,"user_id"?: string
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "tareas_aviso_semanal_organization_id_fkey"
-      columns: ["organization_id"]
-      referencedRelation: "organizations"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },
     }
     Views: {
       barberos_safe: {
@@ -5972,6 +6836,59 @@ export type Database = {
         Returns: undefined
       }
       org_has_any_pin: { Args: never; Returns: boolean }
+      partner_apply_effect: {
+        Args: { _effect: Json; _reference: Json; _revision: string }
+        Returns: Json
+      }
+      partner_begin_identity: { Args: { _email: string }; Returns: string }
+      partner_cancel_identity: { Args: { _nonce: string }; Returns: undefined }
+      partner_check_payout: {
+        Args: { _account: string; _holder: string; _tax: string }
+        Returns: boolean
+      }
+      partner_claim_identity: {
+        Args: { _email: string; _nonce: string }
+        Returns: boolean
+      }
+      partner_context: { Args: { _referral_id: string }; Returns: Json }
+      partner_finalize_checkout: {
+        Args: {
+          _existing_subscription_id: string
+          _expected_amount_ars: number
+          _expected_catalog_amount_ars: number
+          _expected_plan_updated_at: string
+          _expected_price_version: number
+          _expected_subscription_updated_at: string
+          _external_reference: string
+          _init_point: string
+          _metadata: Json
+          _organization_id: string
+          _partner_quote_id: string
+          _payer_email: string
+          _plan_code: string
+          _preapproval_id: string
+          _preserve_current_provider: boolean
+          _provider_status: string
+        }
+        Returns: Json
+      }
+      partner_observe_payment: { Args: { _event_id: string }; Returns: string }
+      partner_program_command: {
+        Args: {
+          _action: string
+          _actor_id: string
+          _contract_version: number
+          _input: Json
+        }
+        Returns: Json
+      }
+      partner_rate: { Args: { _partner_id: string }; Returns: number }
+      partner_reference: { Args: { _input: Json }; Returns: string }
+      partner_register_referral: {
+        Args: { _user_id: string }
+        Returns: undefined
+      }
+      partner_tier_input: { Args: { _partner_id: string }; Returns: Json }
       platform_admin_claim_price_change_items: {
         Args: { _batch_id: string; _limit?: number }
         Returns: {
@@ -6308,17 +7225,6 @@ export type Database = {
         Returns: boolean
       }
       validate_portal_links: { Args: { p_links: Json }; Returns: boolean }
-      "tareas_accion_pin":
-{ Args: { "p_accion": string,"p_cuenta": string,"p_pin_hash": string,"p_tarea": string,"p_version": string }; Returns: Json
-                           },
-      "tareas_accion":
-{ Args: { "p_accion": string,"p_tarea": string,"p_version": string }; Returns: Json
-                           },
-      "tareas_previstas":
-{ Args: { "p_desde": string,"p_hasta": string,"p_sucursal"?: string }; Returns: {
-              "asignado_a_id": string,"asignado_a_nombre": string,"assignment_scope": string,"descripcion": string,"fecha": string,"hora": string,"recurrencia_id": string,"sucursal_id": string,"titulo": string
-            }[]
-                           }
     }
     Enums: {
       app_role:
