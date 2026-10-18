@@ -82,8 +82,8 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
           .from('organizations')
           .select('*')
           .eq('id', orgId)
-          .maybeSingle()
-          .abortSignal(signal);
+          .abortSignal(signal)
+          .maybeSingle();
         return { data: data as Organization | null, error: queryError, status };
       }, { signal: controller.signal });
       if (generationRef.current !== generation || controller.signal.aborted) return;
@@ -102,8 +102,8 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
             .from('plan_features')
             .select('max_barbers, max_services, can_export_reports, can_view_analytics')
             .eq('plan', org.plan)
-            .maybeSingle()
-            .abortSignal(controller.signal);
+            .abortSignal(controller.signal)
+            .maybeSingle();
           if (generationRef.current === generation && !controller.signal.aborted && data) {
             setPlanFeatures(data as PlanFeatures);
           }

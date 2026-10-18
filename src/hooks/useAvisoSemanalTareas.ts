@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseUntyped } from '@/lib/supabaseUntyped';
 import { useAuth } from '@/contexts/AuthContext';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { useSucursal } from '@/contexts/SucursalContext';
@@ -8,7 +8,7 @@ import type { EstadoAviso } from '@/lib/avisosGlobales';
 import { isEventEnabledForUser } from '@/lib/notifications/catalog';
 import { weekRange } from '@/lib/tareasData';
 import type { AlcanceTareas, FiltroTareas } from '@/lib/tareasAgenda';
-import { avisoPendiente, construirAviso, EVENTO_AVISO_SEMANAL, momentoDelDia } from '@/lib/tareasAvisoSemanal';
+import { avisoPendiente, construirAviso, EVENTO_AVISO_SEMANAL, momentoDelDia, type EstadoAvisoGuardado } from '@/lib/tareasAvisoSemanal';
 import { useOrganizationToday } from '@/hooks/useOrganizationToday';
 import { useNotificationPreferences } from './useNotificationPreferences';
 import { useTareas } from './useTareas';
@@ -53,7 +53,8 @@ export function useAvisoSemanalTareas({ disponible }: { disponible: boolean | nu
     enabled: elegible && preferencesReady && activado,
     staleTime: 60_000,
     queryFn: async ({ signal }) => {
-      const { data, error } = await supabase.from('tareas_aviso_semanal').select('estado, pospuesto_hasta')
+      // Tabla no incluida en los tipos generados: cliente sin tipar.
+      const { data, error } = await supabaseUntyped.from<EstadoAvisoGuardado>('tareas_aviso_semanal').select('estado, pospuesto_hasta')
         .eq('user_id', userId!).eq('organization_id', orgId!).eq('semana', semana).eq('momento', momento)
         .abortSignal(signal).maybeSingle();
       if (error) throw error;
@@ -102,7 +103,7 @@ export function useAvisoSemanalTareas({ disponible }: { disponible: boolean | nu
   const guardar = useMutation({
     mutationFn: async (eleccion: EleccionAviso) => {
       if (!userId || !orgId) throw new Error('Sin sesión');
-      const { data, error } = await supabase.from('tareas_aviso_semanal')
+      const { data, error } = await supabaseUntyped.from<EstadoAvisoGuardado>('tareas_aviso_semanal')
         .upsert({ user_id: userId, organization_id: orgId, semana, momento, estado: eleccion }, { onConflict: 'user_id,organization_id,semana,momento' })
         .select('estado, pospuesto_hasta').single();
       if (error) throw error;

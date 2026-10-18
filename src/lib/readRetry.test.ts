@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ReadFailure, runReadWithRetry } from './readRetry';
+import { ReadFailure, runReadWithRetry, type ReadAttemptResult } from './readRetry';
 
 describe('runReadWithRetry', () => {
   it('reintenta hasta dos veces solo ante fallo transitorio', async () => {
@@ -15,7 +15,7 @@ describe('runReadWithRetry', () => {
   });
 
   it('no acepta como éxito una respuesta que llega después del timeout y aborto', async () => {
-    const slowSuccess = vi.fn((signal: AbortSignal) => new Promise(resolve => {
+    const slowSuccess = vi.fn((signal: AbortSignal): Promise<ReadAttemptResult<string>> => new Promise(resolve => {
       signal.addEventListener('abort', () => resolve({ data: 'tardío', error: null, status: 200 }));
     }));
     await expect(runReadWithRetry(slowSuccess, {

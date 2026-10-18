@@ -76,8 +76,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .from('profiles')
           .select('id, email, full_name, barbero_id, organization_id, default_sucursal_id')
           .eq('id', userId)
-          .maybeSingle()
-          .abortSignal(attemptSignal);
+          .abortSignal(attemptSignal)
+          .maybeSingle();
         return { data: data as Profile | null, error, status };
       }, { signal }),
       runReadWithRetry<AppRole[]>(async attemptSignal => {
